@@ -72,7 +72,9 @@ const DIRS8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const S = {
   phase: 'toss',      // setup | toss | play | animating | penalty | goal | break | over
   vs: 'pvp',          // pvp = player vs player, pvc = player vs komputer
-  bot: null,          // tim yang dijalankan komputer (null jika pvp)
+  bots: new Set(),    // tim yang dijalankan komputer (kosong jika pvp)
+  speed: 1,           // kecepatan permainan (mode tonton komputer)
+  match: null,        // konteks pertandingan liga/piala: { onEnd(home, away), knockout }
   turnId: 0,          // bertambah tiap giliran baru (dipakai bot)
   paused: false,
   half: 1,
@@ -101,7 +103,7 @@ const S = {
 };
 
 const $ = id => document.getElementById(id);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms / (S.speed || 1)));
 const other = t => (t === 'home' ? 'away' : 'home');
 const leftTeam = () => (S.half === 1 ? 'home' : 'away');
 const sideOf = t => (t === leftTeam() ? 'left' : 'right');
@@ -113,7 +115,8 @@ const getSel = () => S.players.find(p => p.id === S.selected);
 // Area kiper: kolom paling depan di depan mulut gawang. Hanya kiper yang boleh berada di sini.
 const isGkArea = (x, y) => (x === 1 || x === CONFIG.COLS) && CONFIG.GOAL_ROWS.includes(y);
 const teamName = t => TEAMS[t].name;
-const isBotTurn = () => !!S.bot && S.turn === S.bot;
+const isBotTurn = () => S.bots.has(S.turn);
+const humanTeam = () => ['home', 'away'].find(t => !S.bots.has(t)) || null;
 
 /* =========================================================
    ATURAN
@@ -761,6 +764,7 @@ function endHalf() {
       <p>Babak 2: kedua tim <b>bertukar gawang</b>.<br><b style="color:${TEAMS[k].color}">${teamName(k)}</b> kick off.</p>
       <div class="btns"><button class="btn primary" id="btnHalf2">Mulai Babak 2</button></div>`);
     $('btnHalf2').onclick = () => {
+      if (S.phase !== 'break') return;
       hideModal();
       S.half = 2;
       S.clock = CONFIG.HALF_SECONDS;
@@ -768,6 +772,7 @@ function endHalf() {
       addLog(`Babak kedua dimulai, kick off ${teamName(k)}`, k, 'info');
       render();
     };
+    if (!humanTeam()) setTimeout(() => $('btnHalf2') && $('btnHalf2').click(), 2000 / S.speed);
   } else {
     S.phase = 'over';
     render();
@@ -775,12 +780,18 @@ function endHalf() {
     const { home, away } = S.score;
     const res = home === away ? 'Hasil Imbang' : `${teamName(home > away ? 'home' : 'away')} Menang!`;
     const col = home === away ? 'var(--gold)' : TEAMS[home > away ? 'home' : 'away'].color;
+    const m = S.match;
     showModal(`
       <h2>Full Time</h2>
       <div class="final">${home} : ${away}</div>
       <p style="font-size:20px;font-weight:800;color:${col}">${res}</p>
-      <div class="btns"><button class="btn primary" id="btnAgain">Main Lagi</button></div>`);
-    $('btnAgain').onclick = () => { hideModal(); resetGame(); };
+      ${m && m.knockout && home === away ? '<p>Imbang di laga sistem gugur: lanjut <b>adu penalti</b>.</p>' : ''}
+      <div class="btns"><button class="btn primary" id="btnAgain">${m ? 'Lanjut' : 'Main Lagi'}</button></div>`);
+    $('btnAgain').onclick = () => {
+      hideModal();
+      if (m) { S.match = null; S.speed = 1; m.onEnd(home, away); }
+      else resetGame();
+    };
   }
 }
 
@@ -805,8 +816,8 @@ function resetGame() {
 function showToss() {
   S.phase = 'toss';
   render();
-  // yang menebak: tim pemain (mode vs komputer) atau Tim 1
-  const g = S.bot ? other(S.bot) : 'home';
+  // yang menebak: tim pemain (mode vs komputer) atau Tim 1; tanpa pemain manusia = otomatis
+  const g = humanTeam() === 'away' ? 'away' : 'home';
   const btnStyle = `style="background:${TEAMS[g].color};color:${inkFor(TEAMS[g].color)};border-color:${TEAMS[g].color}"`;
   showModal(`
     <h2>Lempar Koin</h2>
@@ -844,6 +855,12 @@ function showToss() {
       }, 1900);
     };
   });
+  if (!humanTeam()) {
+    setTimeout(() => document.querySelector('[data-guess=head]').click(), 600);
+    const auto = setInterval(() => {
+      if ($('btnStart')) { clearInterval(auto); setTimeout(() => $('btnStart') && $('btnStart').click(), 900); }
+    }, 200);
+  }
 }
 
 /* =========================================================
@@ -1102,6 +1119,10 @@ function renderHud() {
     : S.phase === 'setup' ? 'Atur pertandingan baru.' : '';
 
   $('btnPause').disabled = !active;
+  $('btnRestart').classList.toggle('hidden', !!S.match);
+  $('btnMenu').classList.toggle('hidden', !!S.match);
+  $('speedBox').classList.toggle('hidden', !!humanTeam());
+  document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === S.speed));
   $('btnPause').textContent = S.paused ? '▶ Lanjut' : '⏸ Pause';
   $('btnSkip').disabled = S.phase !== 'play' || S.paused || bot;
   const h = holder();
@@ -1165,6 +1186,71 @@ $('btnSkip').onclick = () => {
 $('btnRestart').onclick = () => {
   if (confirm('Ulang pertandingan dari awal?')) { hideModal(); resetGame(); }
 };
+$('btnMenu').onclick = () => {
+  if (S.phase === 'play' || S.phase === 'animating' || S.phase === 'penalty') {
+    if (!confirm('Keluar ke menu utama? Pertandingan ini tidak disimpan.')) return;
+  }
+  hideModal();
+  showMainMenu();
+};
+document.querySelectorAll('[data-speed]').forEach(b => { b.onclick = () => { S.speed = +b.dataset.speed; renderHud(); }; });
+
+/* =========================================================
+   MENU UTAMA & PERTANDINGAN DARI LUAR (LIGA / PIALA)
+   ========================================================= */
+// Hentikan pertandingan yang sedang berjalan (tanpa hasil)
+function stopMatch() {
+  S.phase = 'idle';
+  S.paused = false;
+  S.match = null;
+  S.speed = 1;
+  S.bots = new Set();
+}
+
+function showMainMenu() {
+  stopMatch();
+  if (typeof League !== 'undefined') League.hideHub();
+  render();
+  const hasCareer = typeof League !== 'undefined' && League.hasSave();
+  showModal(`
+    <h2>Mini Football</h2>
+    <p>Pilih mode permainan</p>
+    <div class="menu-list">
+      <button class="menu-btn" id="mQuick"><span>⚽</span><b>Pertandingan Cepat</b><small>Player vs Player / vs Komputer</small></button>
+      <button class="menu-btn" id="mLeague"><span>🏆</span><b>Mode Liga</b><small>${hasCareer ? 'Lanjutkan karier' : '16 tim, liga & piala'}</small></button>
+      ${hasCareer ? '<button class="menu-btn" id="mNewCareer"><span>✨</span><b>Karier Baru</b><small>Mulai dari musim 2026/2027</small></button>' : ''}
+    </div>`);
+  $('mQuick').onclick = () => { hideModal(); resetGame(); };
+  $('mLeague').onclick = () => { hideModal(); League.open(); };
+  if (hasCareer) $('mNewCareer').onclick = () => {
+    if (!confirm('Mulai karier baru? Karier & riwayat juara yang tersimpan akan dihapus.')) return;
+    hideModal(); League.newCareer();
+  };
+}
+
+// Mulai pertandingan dari mode liga. opt = { home:{name,color}, away:{name,color}, bots:[...], onEnd, knockout, label }
+function startMatch(opt) {
+  if (typeof League !== 'undefined') League.hideHub();
+  TEAMS.home = { name: opt.home.name, color: opt.home.color };
+  TEAMS.away = { name: opt.away.name, color: opt.away.color };
+  applyTeamColors();
+  S.half = 1;
+  S.clock = CONFIG.HALF_SECONDS;
+  S.score = { home: 0, away: 0 };
+  S.cards = {};
+  S.sentOff = new Set();
+  S.paused = false;
+  S.bots = new Set(opt.bots);
+  S.speed = S.bots.size === 2 ? 3 : 1;
+  S.match = { onEnd: opt.onEnd, knockout: !!opt.knockout };
+  $('log').innerHTML = '';
+  setupKickoff('home');
+  S.phase = 'toss';
+  refresh();
+  render();
+  addLog(`${opt.label ? opt.label + ': ' : ''}${teamName('home')} vs ${teamName('away')}`, null, 'info');
+  showToss();
+}
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.phase === 'play' && S.mode === 'move' && S.selected) {
     const h = holder();
@@ -1176,7 +1262,7 @@ document.addEventListener('keydown', e => {
 
 let last = performance.now();
 function tick(now) {
-  const dt = Math.min(0.25, (now - last) / 1000);
+  const dt = Math.min(0.25, (now - last) / 1000) * S.speed;
   last = now;
   if (!S.paused && (S.phase === 'play' || S.phase === 'animating')) {
     S.clock = Math.max(0, S.clock - dt);
@@ -1190,7 +1276,7 @@ function tick(now) {
     }
     renderHud();
   }
-  if (S.bot && !S.paused && !botBusy && S.turn === S.bot) {
+  if (!S.paused && !botBusy && S.bots.has(S.turn)) {
     if (S.phase === 'play') runBot();
     else if (S.phase === 'penalty') runBotPenalty();
   }
@@ -1302,10 +1388,13 @@ function showSetup() {
     TEAMS.home = { ...cfg.home };
     TEAMS.away = { ...cfg.away };
     S.vs = cfg.vs;
-    S.bot = cfg.vs === 'pvc' ? other(cfg.side) : null;
+    S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
+    S.match = null;
+    S.speed = 1;
     applyTeamColors();
     hideModal();
-    addLog(S.bot ? `${teamName(other(S.bot))} vs ${teamName(S.bot)} (Komputer)` : `${teamName('home')} vs ${teamName('away')}`, null, 'info');
+    const bot = [...S.bots][0];
+    addLog(bot ? `${teamName(other(bot))} vs ${teamName(bot)} (Komputer)` : `${teamName('home')} vs ${teamName('away')}`, null, 'info');
     showToss();
   };
 }
@@ -1510,7 +1599,7 @@ function botDecide() {
 async function runBot() {
   botBusy = true;
   const id = S.turnId;
-  const alive = () => S.turnId === id && S.phase === 'play' && S.turn === S.bot;
+  const alive = () => S.turnId === id && S.phase === 'play' && S.bots.has(S.turn);
   botTouched = new Set();
   try {
     await botWait(BOT.STEP_MS);
@@ -1535,7 +1624,7 @@ async function runBotPenalty() {
   botBusy = true;
   try {
     await botWait(1200);
-    if (S.phase === 'penalty' && S.turn === S.bot) await takePenalty();
+    if (S.phase === 'penalty' && S.bots.has(S.turn)) await takePenalty();
   } finally {
     botBusy = false;
   }
@@ -1544,5 +1633,7 @@ async function runBotPenalty() {
 /* ---------- start ---------- */
 buildPitch();
 applyTeamColors();
-resetGame();
+render();
+// menu utama dibuka setelah semua skrip (termasuk league.js) dimuat
+window.addEventListener('load', showMainMenu);
 requestAnimationFrame(tick);

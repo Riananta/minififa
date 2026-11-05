@@ -7,6 +7,9 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- HUB MODE LIGA -->
+  <div class="hub hidden" id="hub"></div>
+
   <div class="app">
     <!-- PAPAN SKOR -->
     <header class="scoreboard">
@@ -75,6 +78,10 @@
           <button class="btn" id="btnPause">⏸ Pause</button>
           <button class="btn" id="btnSkip">⏭ Lewati Giliran</button>
           <button class="btn ghost" id="btnRestart">↻ Ulang</button>
+          <button class="btn ghost" id="btnMenu">🏠 Menu</button>
+          <div class="seg hidden" id="speedBox" title="Kecepatan (mode tonton komputer)">
+            <button data-speed="1">1x</button><button data-speed="3">3x</button><button data-speed="6">6x</button>
+          </div>
         </div>
       </main>
 
@@ -102,6 +109,7 @@
             <li>Merebut bola: <b>25%</b> pelanggaran. Di kotak penalti = <b>PENALTI</b> (kiper menahan 20%). Di luar = <b>tendangan bebas</b> (gratis, energi penuh dipakai setelahnya); di area lawan ada <b>1 pemain pagar</b>.</li>
             <li>Pelanggaran: <b>peringatan</b> (55%), <b>kartu kuning</b> (35%), atau <b>merah langsung</b> (10%). Kuning kedua = <b>merah</b>, pemain keluar lapangan.</li>
             <li>2 × 5 menit. Saat turun minum, tim bertukar gawang.</li>
+            <li><b>Mode Liga</b>: pilih 1 dari 16 tim, liga kandang-tandang 30 pekan + piala sistem gugur (imbang = adu penalti). Pertandingan lain diundi skornya. Juara tiap musim tersimpan.</li>
             <li>Mode <b>Player vs Komputer</b>: komputer berpikir sendiri tanpa layanan AI (aturan & perhitungan peluang), tingkat <b>Sulit</b>.</li>
           </ul>
         </section>
@@ -114,5 +122,6 @@
   </div>
 
   <script src="game.js"></script>
+  <script src="league.js"></script>
 </body>
 </html>
