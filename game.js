@@ -41,10 +41,16 @@ const CONFIG = {
   HALF_SECONDS: 300,   // 5 menit per babak
 };
 
+// Nama & warna tim diatur pemain di layar awal
 const TEAMS = {
   home: { name: 'Tim Biru', color: '#2f7cf6' },
   away: { name: 'Tim Merah', color: '#ef4444' },
 };
+
+const PALETTE = [
+  ['Biru', '#2f7cf6'], ['Merah', '#ef4444'], ['Kuning', '#facc15'], ['Ungu', '#8b5cf6'],
+  ['Oranye', '#f97316'], ['Pink', '#ec4899'], ['Cyan', '#06b6d4'], ['Hitam', '#1f2937'], ['Putih', '#f1f5f9'],
+];
 
 // Formasi 1-2-2-1 untuk tim yang bermain di sisi KIRI.
 // Tim sisi kanan dicerminkan otomatis. kx = posisi x penyerang saat kick off.
@@ -64,7 +70,10 @@ const DIRS8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
    STATE
    ========================================================= */
 const S = {
-  phase: 'toss',      // toss | play | animating | goal | break | over
+  phase: 'toss',      // setup | toss | play | animating | penalty | goal | break | over
+  vs: 'pvp',          // pvp = player vs player, pvc = player vs komputer
+  bot: null,          // tim yang dijalankan komputer (null jika pvp)
+  turnId: 0,          // bertambah tiap giliran baru (dipakai bot)
   paused: false,
   half: 1,
   clock: CONFIG.HALF_SECONDS,
@@ -104,6 +113,7 @@ const getSel = () => S.players.find(p => p.id === S.selected);
 // Area kiper: kolom paling depan di depan mulut gawang. Hanya kiper yang boleh berada di sini.
 const isGkArea = (x, y) => (x === 1 || x === CONFIG.COLS) && CONFIG.GOAL_ROWS.includes(y);
 const teamName = t => TEAMS[t].name;
+const isBotTurn = () => !!S.bot && S.turn === S.bot;
 
 /* =========================================================
    ATURAN
@@ -134,6 +144,7 @@ function setupKickoff(team) {
 
 // Mulai giliran baru untuk tim t: waktu & energi penuh
 function newTurn(t) {
+  S.turnId++;
   S.turn = t;
   S.turnTime = CONFIG.TURN_SECONDS;
   S.energy = CONFIG.ENERGY;
@@ -244,19 +255,19 @@ function lineCells(from, tx, ty) {
 //  - garis keluar lapangan-> bola berhenti di kotak terakhir di lapangan
 // Tendangan jauh punya peluang berhenti di tengah jalan.
 // Titik tujuan tendangan: arah dari titik bidik, panjang dari pengaturan (jika diatur).
-function kickPoint(k, aim) {
-  if (!S.kickLen) return aim;
+function kickPoint(k, aim, kickLen = S.kickLen) {
+  if (!kickLen) return aim;
   const ax = k.x + 0.5, ay = k.y + 0.5;
   const len = Math.hypot(aim.x - ax, aim.y - ay);
   if (len < 0.01) return aim;
-  return { x: ax + (aim.x - ax) / len * S.kickLen, y: ay + (aim.y - ay) / len * S.kickLen };
+  return { x: ax + (aim.x - ax) / len * kickLen, y: ay + (aim.y - ay) / len * kickLen };
 }
 
-function planKick(k, aim) {
+function planKick(k, aim, kickLen = S.kickLen) {
   const from = { x: k.x, y: k.y };
   const path = [];
   let goal = null;
-  const pt = kickPoint(k, aim);
+  const pt = kickPoint(k, aim, kickLen);
   for (const c of lineCells(from, pt.x, pt.y)) {
     if (isGoalCell(c.x, c.y)) { path.push(c); goal = c.x === 0 ? 'left' : 'right'; break; }
     if (!inField(c.x, c.y)) break;
@@ -397,7 +408,7 @@ function endTurn() {
 }
 
 function setAction(act) {
-  if (S.phase !== 'play' || S.paused) return;
+  if (S.phase !== 'play' || S.paused || isBotTurn()) return;
   if (S.setPiece) return; // tendangan bebas harus ditendang dulu
   const h = holder();
   if (!h || h.team !== S.turn) return;
@@ -421,7 +432,7 @@ function setAction(act) {
    AKSI
    ========================================================= */
 function onPlayerClick(id) {
-  if (S.phase !== 'play' || S.paused || S.setPiece) return;
+  if (S.phase !== 'play' || S.paused || S.setPiece || isBotTurn()) return;
   const p = S.players.find(q => q.id === id);
   if (!p || p.team !== S.turn) return;
   const isHolder = holder() === p;
@@ -440,9 +451,13 @@ function onPlayerClick(id) {
 }
 
 async function onTargetClick(t) {
-  if (S.phase !== 'play' || S.paused) return;
-  if (S.mode === 'move') {
-    const p = getSel();
+  if (S.phase !== 'play' || S.paused || isBotTurn()) return;
+  if (S.mode === 'move') await performMove(getSel(), t);
+}
+
+// Gerakkan / giring pemain p ke target t (dipakai pemain & komputer)
+async function performMove(p, t) {
+  {
     if (!p || t.cost > S.energy) return;
     S.energy -= t.cost;
     S.used.add(p.id);
@@ -778,27 +793,32 @@ function resetGame() {
   S.paused = false;
   $('log').innerHTML = '';
   setupKickoff('home');
-  S.phase = 'toss';
+  S.phase = 'setup';
   refresh();
   render();
-  showToss();
+  showSetup();
 }
 
 /* =========================================================
    LEMPAR KOIN
    ========================================================= */
 function showToss() {
+  S.phase = 'toss';
+  render();
+  // yang menebak: tim pemain (mode vs komputer) atau Tim 1
+  const g = S.bot ? other(S.bot) : 'home';
+  const btnStyle = `style="background:${TEAMS[g].color};color:${inkFor(TEAMS[g].color)};border-color:${TEAMS[g].color}"`;
   showModal(`
     <h2>Lempar Koin</h2>
-    <p><b style="color:${TEAMS.home.color}">${teamName('home')}</b> menebak sisi koin.<br>
-       Benar: ${teamName('home')} kick off. Salah: ${teamName('away')} kick off.</p>
+    <p><b style="color:${TEAMS[g].color}">${esc(teamName(g))}</b> menebak sisi koin.<br>
+       Benar: ${esc(teamName(g))} kick off. Salah: ${esc(teamName(other(g)))} kick off.</p>
     <div class="coin-stage"><div class="coin" id="coin">
       <div class="face head">HEAD</div><div class="face tail">TAIL</div>
     </div></div>
     <p id="tossResult">Pilih tebakanmu</p>
     <div class="btns" id="tossBtns">
-      <button class="btn home" data-guess="head">HEAD</button>
-      <button class="btn home" data-guess="tail">TAIL</button>
+      <button class="btn" ${btnStyle} data-guess="head">HEAD</button>
+      <button class="btn" ${btnStyle} data-guess="tail">TAIL</button>
     </div>`);
   document.querySelectorAll('[data-guess]').forEach(b => {
     b.onclick = () => {
@@ -809,11 +829,11 @@ function showToss() {
       $('coin').style.transform = `rotateY(${5 * 360 + (result === 'tail' ? 180 : 0)}deg)`;
       setTimeout(() => {
         const correct = guess === result;
-        const k = correct ? 'home' : 'away';
+        const k = correct ? g : other(g);
         S.firstKickoff = k;
         $('tossResult').innerHTML =
           `Hasil: <b>${result.toUpperCase()}</b>, tebakan ${correct ? 'benar' : 'salah'}!<br>` +
-          `<b style="color:${TEAMS[k].color}">${teamName(k)}</b> kick off lebih dulu.`;
+          `<b style="color:${TEAMS[k].color}">${esc(teamName(k))}</b> kick off lebih dulu.`;
         $('tossBtns').innerHTML = `<button class="btn primary" id="btnStart">Mulai Pertandingan</button>`;
         $('btnStart').onclick = () => {
           hideModal();
@@ -890,7 +910,8 @@ function renderBall() {
 function renderTargets() {
   const layer = els.targets;
   layer.innerHTML = '';
-  if (S.paused) return;
+  els.aim = null;
+  if (S.paused || isBotTurn()) return;
   if (S.mode === 'kick' && S.phase === 'play') { buildAim(layer); return; }
   for (const t of S.targets) {
     const b = document.createElement('button');
@@ -937,7 +958,7 @@ function buildAim(layer) {
     setKickLen((base || 1) + (e.deltaY < 0 ? 1 : -1));
   };
   aim.onpointerup = e => {
-    if (S.phase !== 'play' || S.paused) return;
+    if (S.phase !== 'play' || S.paused || isBotTurn()) return;
     const g = toGrid(e);
     const h = holder();
     if (h && Math.floor(g.x) === h.x && Math.floor(g.y) === h.y) {
@@ -965,8 +986,8 @@ function renderPower() {
 }
 
 function drawAim() {
-  clearPath();
   if (!els.aim) return;
+  clearPath();
   const { line, label } = els.aim;
   const h = holder();
   const plan = S.aim && h ? planKick(h, S.aim) : null;
@@ -1051,10 +1072,12 @@ function renderHud() {
 
   const active = S.phase === 'play' || S.phase === 'animating';
   document.documentElement.style.setProperty('--team', TEAMS[S.turn].color);
+  document.documentElement.style.setProperty('--team-ink', inkFor(TEAMS[S.turn].color));
+  const bot = isBotTurn();
   const pen = S.phase === 'penalty';
   $('turnPill').textContent = pen ? `Penalti ${teamName(S.turn)}`
-    : active ? `Giliran ${teamName(S.turn)}` : (S.phase === 'over' ? 'Selesai' : 'Menunggu');
-  $('btnPenalty').classList.toggle('hidden', !pen);
+    : active ? `Giliran ${teamName(S.turn)}${bot ? ' 🤖' : ''}` : (S.phase === 'over' ? 'Selesai' : 'Menunggu');
+  $('btnPenalty').classList.toggle('hidden', !pen || bot);
   const sec = Math.max(0, Math.ceil(S.turnTime));
   const low = active && sec <= 10;
   $('turnSec').textContent = active ? sec + 's' : '';
@@ -1068,22 +1091,24 @@ function renderHud() {
   if (pips.childElementCount !== CONFIG.ENERGY)
     pips.innerHTML = '<i></i>'.repeat(CONFIG.ENERGY);
   [...pips.children].forEach((d, i) => d.classList.toggle('on', i < (showE ? S.energy : CONFIG.ENERGY)));
-  $('hint').innerHTML = S.phase === 'play' ? S.hint
+  $('hint').innerHTML = (active || pen) && bot ? `🤖 <b>Komputer</b> (${teamName(S.turn)}) sedang bermain...`
+    : S.phase === 'play' ? S.hint
     : pen ? (() => {
         const tk = S.players.find(p => p.id === S.penalty.taker);
         return `<b>PENALTI</b>: #${tk.num} menendang lurus ke tengah gawang. Peluang kiper menahan <b>${Math.round(CONFIG.PEN_SAVE * 100)}%</b>.`;
       })()
     : S.phase === 'animating' ? '...'
-    : S.phase === 'toss' ? 'Lempar koin untuk menentukan kick off.' : '';
+    : S.phase === 'toss' ? 'Lempar koin untuk menentukan kick off.'
+    : S.phase === 'setup' ? 'Atur pertandingan baru.' : '';
 
   $('btnPause').disabled = !active;
   $('btnPause').textContent = S.paused ? '▶ Lanjut' : '⏸ Pause';
-  $('btnSkip').disabled = S.phase !== 'play' || S.paused;
+  $('btnSkip').disabled = S.phase !== 'play' || S.paused || bot;
   const h = holder();
-  const showAct = S.phase === 'play' && !S.paused && h && h.team === S.turn && !S.setPiece;
+  const showAct = S.phase === 'play' && !S.paused && !bot && h && h.team === S.turn && !S.setPiece;
   $('holderActions').classList.toggle('hidden', !showAct);
   document.querySelector('[data-act="dribble"]').classList.toggle('hidden', !!(h && S.used.has(h.id)));
-  $('powerBox').classList.toggle('hidden', !(S.phase === 'play' && !S.paused && S.mode === 'kick'));
+  $('powerBox').classList.toggle('hidden', !(S.phase === 'play' && !S.paused && !bot && S.mode === 'kick'));
   const cur = S.selected === (h && h.id) ? S.action : 'other';
   document.querySelectorAll('[data-act]').forEach(b => b.classList.toggle('on', b.dataset.act === cur));
   const spent = S.energy < CONFIG.ENERGY;
@@ -1133,7 +1158,7 @@ $('power').oninput = e => setKickLen(+e.target.value);
 renderPower();
 document.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => setAction(b.dataset.act); });
 $('btnSkip').onclick = () => {
-  if (S.phase !== 'play' || S.paused) return;
+  if (S.phase !== 'play' || S.paused || isBotTurn()) return;
   if (S.energy >= CONFIG.ENERGY) addLog(`${teamName(S.turn)} melewati giliran`, S.turn);
   endTurn();
 };
@@ -1165,10 +1190,359 @@ function tick(now) {
     }
     renderHud();
   }
+  if (S.bot && !S.paused && !botBusy && S.turn === S.bot) {
+    if (S.phase === 'play') runBot();
+    else if (S.phase === 'penalty') runBotPenalty();
+  }
   requestAnimationFrame(tick);
+}
+
+/* =========================================================
+   WARNA TIM
+   ========================================================= */
+const esc = str => String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function shade(hex, amt) { // amt > 0 lebih terang, < 0 lebih gelap
+  const n = parseInt(hex.slice(1), 16);
+  const to = amt < 0 ? 0 : 255, p = Math.abs(amt);
+  const ch = v => Math.round((to - v) * p + v);
+  const r = ch(n >> 16), g = ch((n >> 8) & 255), b = ch(n & 255);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+function inkFor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? '#0b1220' : '#ffffff';
+}
+function applyTeamColors() {
+  const st = document.documentElement.style;
+  for (const t of ['home', 'away']) {
+    const c = TEAMS[t].color;
+    const gk = shade(c, -0.45);
+    st.setProperty(`--${t}`, c);
+    st.setProperty(`--${t}-light`, shade(c, 0.45));
+    st.setProperty(`--${t}-dark`, shade(c, -0.4));
+    st.setProperty(`--${t}-ink`, inkFor(c));
+    st.setProperty(`--${t}-gk`, gk);
+    st.setProperty(`--${t}-gk-light`, shade(c, 0.1));
+    st.setProperty(`--${t}-gk-dark`, shade(c, -0.7));
+    st.setProperty(`--${t}-gk-ink`, inkFor(gk));
+  }
+}
+
+/* =========================================================
+   LAYAR AWAL: MODE, NAMA & WARNA TIM
+   ========================================================= */
+const SETUP_KEY = 'minififa.setup';
+function loadSetup() {
+  const def = { vs: 'pvp', side: 'home', home: { ...TEAMS.home }, away: { ...TEAMS.away } };
+  try {
+    const v = JSON.parse(localStorage.getItem(SETUP_KEY));
+    if (v && v.home && v.away) return { ...def, ...v };
+  } catch (e) { /* abaikan */ }
+  return def;
+}
+function saveSetup(v) { try { localStorage.setItem(SETUP_KEY, JSON.stringify(v)); } catch (e) { /* abaikan */ } }
+
+function showSetup() {
+  const cfg = loadSetup();
+  const swatches = t => PALETTE.map(([n, c]) =>
+    `<button type="button" class="swatch" data-team="${t}" data-color="${c}" title="${n}" style="background:${c}"></button>`).join('');
+  showModal(`
+    <h2>Pertandingan Baru</h2>
+    <div class="setup">
+      <div class="mode-pick">
+        <button type="button" class="mode-btn" data-vs="pvp"><span>👤 vs 👤</span><small>Player vs Player</small></button>
+        <button type="button" class="mode-btn" data-vs="pvc"><span>👤 vs 🤖</span><small>Player vs Komputer</small></button>
+      </div>
+      ${['home', 'away'].map((t, i) => `
+        <div class="team-cfg">
+          <div class="team-head"><span class="team-dot" id="dot-${t}"></span><b>Tim ${i + 1}</b> <span class="who" id="who-${t}"></span></div>
+          <input class="team-name" id="name-${t}" maxlength="16" value="${esc(cfg[t].name)}" placeholder="Nama tim ${i + 1}">
+          <div class="swatches">${swatches(t)}</div>
+        </div>`).join('')}
+      <div class="side-pick" id="sidePick">
+        <span>Kamu bermain sebagai:</span>
+        <div class="seg"><button type="button" data-side="home"></button><button type="button" data-side="away"></button></div>
+      </div>
+      <p class="setup-err" id="setupErr"></p>
+    </div>
+    <div class="btns"><button class="btn primary" id="btnSetupOk">Lanjut ke Lempar Koin</button></div>`);
+
+  const sync = () => {
+    for (const t of ['home', 'away']) {
+      cfg[t].name = $('name-' + t).value;
+      $('dot-' + t).style.background = cfg[t].color;
+      const label = cfg[t].name.trim() || (t === 'home' ? 'Tim 1' : 'Tim 2');
+      document.querySelector(`[data-side="${t}"]`).textContent = label;
+      $('who-' + t).textContent = cfg.vs === 'pvc' ? (cfg.side === t ? '(Kamu)' : '(Komputer 🤖)') : '';
+    }
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('on', b.dataset.vs === cfg.vs));
+    document.querySelectorAll('[data-side]').forEach(b => b.classList.toggle('on', b.dataset.side === cfg.side));
+    $('sidePick').classList.toggle('hidden', cfg.vs !== 'pvc');
+    document.querySelectorAll('.swatch').forEach(b => {
+      const t = b.dataset.team;
+      b.classList.toggle('on', cfg[t].color === b.dataset.color);
+      b.disabled = cfg[other(t)].color === b.dataset.color; // warna tidak boleh sama
+    });
+  };
+  document.querySelectorAll('.mode-btn').forEach(b => { b.onclick = () => { cfg.vs = b.dataset.vs; sync(); }; });
+  document.querySelectorAll('[data-side]').forEach(b => { b.onclick = () => { cfg.side = b.dataset.side; sync(); }; });
+  document.querySelectorAll('.swatch').forEach(b => { b.onclick = () => { cfg[b.dataset.team].color = b.dataset.color; sync(); }; });
+  ['home', 'away'].forEach(t => { $('name-' + t).oninput = sync; });
+  if (cfg.home.color === cfg.away.color) cfg.away.color = PALETTE.find(([, c]) => c !== cfg.home.color)[1];
+  sync();
+
+  $('btnSetupOk').onclick = () => {
+    const clean = v => v.replace(/[<>&"']/g, '').trim(); // nama ikut tampil sebagai HTML
+    const n1 = clean(cfg.home.name) || 'Tim 1', n2 = clean(cfg.away.name) || 'Tim 2';
+    if (n1.toLowerCase() === n2.toLowerCase()) { $('setupErr').textContent = 'Nama kedua tim tidak boleh sama.'; return; }
+    cfg.home.name = n1; cfg.away.name = n2;
+    saveSetup(cfg);
+    TEAMS.home = { ...cfg.home };
+    TEAMS.away = { ...cfg.away };
+    S.vs = cfg.vs;
+    S.bot = cfg.vs === 'pvc' ? other(cfg.side) : null;
+    applyTeamColors();
+    hideModal();
+    addLog(S.bot ? `${teamName(other(S.bot))} vs ${teamName(S.bot)} (Komputer)` : `${teamName('home')} vs ${teamName('away')}`, null, 'info');
+    showToss();
+  };
+}
+
+/* =========================================================
+   KOMPUTER (BOT) — tanpa layanan AI, murni aturan & perhitungan.
+   Tiap langkah: coba semua aksi yang mungkin, beri nilai, pilih yang terbaik.
+   ========================================================= */
+const BOT = {
+  STEP_MS: 700,       // jeda antar aksi agar terlihat
+  GOAL_V: 40,         // nilai sebuah gol
+  COST_W: 0.02,       // penalti kecil per energi (sisa energi toh hangus)
+  MARGIN: 0.3,        // aksi bola harus lebih baik dari menahan bola minimal segini
+};
+let botBusy = false;
+let botTouched = new Set(); // pemain bot yang sudah memegang bola giliran ini
+
+async function botWait(ms) {
+  await sleep(ms);
+  while (S.paused) await sleep(150);
+}
+const dirOf = t => (sideOf(t) === 'left' ? 1 : -1);
+const attackGoalX = t => (sideOf(t) === 'left' ? CONFIG.COLS + 1 : 0);
+const progress = (x, t) => (sideOf(t) === 'left' ? x : CONFIG.COLS + 1 - x) / (CONFIG.COLS + 1);
+const cheb = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Tekanan lawan di sekitar kotak c (lawan dekat = bola mudah direbut giliran berikutnya)
+function pressure(c, t) {
+  let p = 0;
+  for (const q of S.players) {
+    if (q.team === t || q.role === 'GK') continue;
+    const d = cheb(q, c);
+    p += d <= 1 ? 1 : d === 2 ? 0.5 : d === 3 ? 0.2 : 0;
+  }
+  return p;
+}
+// Nilai posisi pembawa bola untuk tim t
+function holdValue(c, t) {
+  return 14 * progress(c.x, t) + (CONFIG.GOAL_ROWS.includes(c.y) ? 0.6 : 0) - 1.5 * pressure(c, t);
+}
+// Kerugian jika bola hilang di kotak c (makin dekat gawang sendiri makin buruk)
+const lossValue = (c, t) => -(4 + 6 * (1 - progress(c.x, t)));
+
+function kickAct(own, plan) {
+  return async () => {
+    S.selected = own.id;
+    render();
+    showPath(plan);
+    await botWait(450);
+    clearPath();
+    if (S.phase === 'play' && holder() === own) await doKick(plan);
+  };
+}
+function moveAct(p, t) {
+  return async () => {
+    S.selected = p.id;
+    render();
+    await botWait(250);
+    if (S.phase === 'play') await performMove(p, t);
+  };
+}
+
+// Pilihan untuk pembawa bola: tembak, oper, giring
+function holderOptions(own) {
+  const t = own.team, opts = [];
+  // tembakan: coba beberapa titik di mulut gawang
+  const gx = attackGoalX(t) + 0.5;
+  let bestShot = null;
+  for (let gy = 1.15; gy < 3.9; gy += 0.3) {
+    const plan = planKick(own, { x: gx, y: gy }, 0);
+    if (!plan || !plan.goal || plan.cost > S.energy) continue;
+    if (!bestShot || plan.success > bestShot.success) bestShot = plan;
+  }
+  if (bestShot) opts.push({ ev: bestShot.success * BOT.GOAL_V - (1 - bestShot.success), cost: bestShot.cost, run: kickAct(own, bestShot) });
+
+  // operan ke teman: coba beberapa titik di kotak teman
+  for (const r of S.players) {
+    if (r.team !== t || r === own) continue;
+    let best = null;
+    for (const [ox, oy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+      const plan = planKick(own, { x: r.x + ox, y: r.y + oy }, 0);
+      if (!plan || plan.receiver !== r || plan.cost > S.energy) continue;
+      if (!best || plan.success > best.success) best = plan;
+    }
+    if (!best) continue;
+    const lose = best.blockers[0] ? best.path[best.blockers[0].at] : best.path[Math.floor(best.path.length / 2)];
+    // penerima yang lebih maju & masih bisa menggiring sedikit lebih bernilai;
+    // operan balik ke pemain yang sudah pegang bola giliran ini dihindari (tidak bolak-balik)
+    let gain = holdValue(r, t);
+    if (!S.used.has(r.id) && progress(r.x, t) > progress(own.x, t)) gain += 0.4;
+    if (botTouched.has(r.id)) gain -= 3;
+    opts.push({ ev: best.success * gain + (1 - best.success) * lossValue(lose, t), cost: best.cost, run: kickAct(own, best) });
+  }
+
+  // giring
+  if (!S.used.has(own.id) && !S.setPiece) {
+    for (const m of moveTargets(own)) {
+      if (m.cost > S.energy) continue;
+      opts.push({ ev: holdValue(m, t), cost: m.cost, run: moveAct(own, m) });
+    }
+  }
+  return opts;
+}
+
+// Posisi ideal tiap pemain (tanpa bola)
+function desiredCell(p, t, attacking) {
+  const dir = dirOf(t), ball = S.ball;
+  const ownBoxX = sideOf(t) === 'left' ? 2 : CONFIG.COLS - 1;
+  const oppBoxX = sideOf(t) === 'left' ? CONFIG.COLS - 1 : 2;
+  const lane = p.num === 2 || p.num === 7 ? -1 : 1;
+  if (p.role === 'GK') return { x: p.x, y: clamp(ball.y, 1, 3) };
+  if (attacking) {
+    if (p.role === 'FW') return { x: oppBoxX, y: 2 };
+    if (p.role === 'MF') return { x: clamp(ball.x + 2 * dir, 2, CONFIG.COLS - 1), y: 2 + lane };
+    return { x: clamp(ball.x - 3 * dir, 2, CONFIG.COLS - 1), y: 2 + lane };
+  }
+  const h = holder();
+  if (p.role === 'FW' && h) return { x: clamp(h.x + dir, 1, CONFIG.COLS), y: h.y };     // tekan pembawa bola
+  if (p.role === 'MF') {
+    // jaga lawan terdekat (selain pembawa bola), dari sisi gawang sendiri
+    const opp = S.players.filter(q => q.team !== t && q.role !== 'GK' && q !== h)
+      .sort((a, b) => cheb(a, p) - cheb(b, p))[0];
+    if (opp) return { x: clamp(opp.x - dir, 2, CONFIG.COLS - 1), y: opp.y };
+  }
+  // bek: di antara bola dan gawang sendiri
+  const x = sideOf(t) === 'left' ? Math.max(ownBoxX, ball.x - 2) : Math.min(ownBoxX, ball.x + 2);
+  return { x, y: clamp(ball.y + lane, 0, CONFIG.ROWS - 1) };
+}
+
+// Gerakan tanpa bola terbaik (mengatur posisi menyerang / bertahan)
+function bestPositionMove(t, own, reserve) {
+  const attacking = !!own;
+  let best = null;
+  for (const p of S.players) {
+    if (p.team !== t || p === own || S.used.has(p.id)) continue;
+    const T = desiredCell(p, t, attacking);
+    const d0 = Math.hypot(p.x - T.x, p.y - T.y);
+    for (const m of moveTargets(p)) {
+      if (m.steal || m.cost > S.energy - reserve) continue;
+      const d1 = Math.hypot(m.x - T.x, m.y - T.y);
+      let gain = d0 - d1;
+      if (attacking) gain += 0.8 * (pressure(p, t) - pressure(m, t)); // cari ruang terbuka
+      const score = gain - 0.15 * m.cost;
+      if (gain >= 0.7 && (!best || score > best.score)) best = { score, run: moveAct(p, m) };
+    }
+  }
+  return best && best.run;
+}
+
+function botDecide() {
+  const t = S.turn, h = holder();
+  const own = h && h.team === t ? h : null;
+  if (own) {
+    const opts = holderOptions(own);
+    const stay = S.setPiece ? -Infinity : holdValue(own, t);
+    let best = null;
+    for (const o of opts) if (!best || o.ev - BOT.COST_W * o.cost > best.ev - BOT.COST_W * best.cost) best = o;
+    if (best && best.ev - BOT.COST_W * best.cost > stay + BOT.MARGIN) return best.run;
+    if (S.setPiece && best) return best.run;
+  } else if (!h) {
+    // bola lepas: pemain dengan biaya termurah mengambil bola
+    let grab = null;
+    for (const p of S.players) {
+      if (p.team !== t || S.used.has(p.id)) continue;
+      for (const m of moveTargets(p))
+        if (m.x === S.ball.x && m.y === S.ball.y && m.cost <= S.energy && (!grab || m.cost < grab.m.cost)) grab = { p, m };
+    }
+    if (grab) return moveAct(grab.p, grab.m);
+  } else {
+    // lawan membawa bola: rebut jika sepadan dengan risiko pelanggaran
+    const box = inBox(h.x, h.y, sideOf(t));
+    const ev = (1 - CONFIG.FOUL_CHANCE) * (3 + 0.5 * holdValue(h, h.team)) + CONFIG.FOUL_CHANCE * (box ? -18 : -2);
+    if (ev > 0) {
+      let st = null;
+      for (const p of S.players) {
+        if (p.team !== t || S.used.has(p.id)) continue;
+        for (const m of moveTargets(p)) if (m.steal && m.cost <= S.energy && (!st || m.cost < st.m.cost)) st = { p, m };
+      }
+      if (st) return moveAct(st.p, st.m);
+    }
+  }
+  // sisihkan energi untuk tendangan jika masih membawa bola
+  const reserve = own ? CONFIG.COST_SHOT : 0;
+  const ball = !h ? { x: S.ball.x, y: S.ball.y } : null;
+  if (ball) {
+    // bola lepas tapi belum terjangkau: pemain terdekat mendekat
+    let best = null;
+    for (const p of S.players) {
+      if (p.team !== t || S.used.has(p.id) || p.role === 'GK') continue;
+      for (const m of moveTargets(p)) {
+        if (m.cost > S.energy) continue;
+        const gain = cheb(p, ball) - cheb(m, ball);
+        if (gain > 0 && (!best || gain - 0.1 * m.cost > best.s)) best = { s: gain - 0.1 * m.cost, run: moveAct(p, m) };
+      }
+    }
+    if (best) return best.run;
+  }
+  return bestPositionMove(t, own, reserve);
+}
+
+async function runBot() {
+  botBusy = true;
+  const id = S.turnId;
+  const alive = () => S.turnId === id && S.phase === 'play' && S.turn === S.bot;
+  botTouched = new Set();
+  try {
+    await botWait(BOT.STEP_MS);
+    for (let i = 0; i < 40 && alive(); i++) {
+      const hh = holder();
+      if (hh && hh.team === S.turn) botTouched.add(hh.id);
+      const act = botDecide();
+      if (!act) {
+        addLog(`${teamName(S.turn)} mengakhiri giliran`, S.turn);
+        endTurn();
+        break;
+      }
+      await act();
+      await botWait(BOT.STEP_MS);
+    }
+  } finally {
+    botBusy = false;
+  }
+}
+
+async function runBotPenalty() {
+  botBusy = true;
+  try {
+    await botWait(1200);
+    if (S.phase === 'penalty' && S.turn === S.bot) await takePenalty();
+  } finally {
+    botBusy = false;
+  }
 }
 
 /* ---------- start ---------- */
 buildPitch();
+applyTeamColors();
 resetGame();
 requestAnimationFrame(tick);
