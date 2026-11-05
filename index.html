@@ -46,6 +46,10 @@
             <span class="turn-sec" id="turnSec">30</span>
           </div>
           <div class="timer"><div class="timer-fill" id="timerFill"></div></div>
+          <div class="energy" id="energy">
+            <span class="energy-label">⚡ Energi <b id="energyVal">12/12</b></span>
+            <div class="energy-pips" id="energyPips"></div>
+          </div>
           <div class="hint-row">
             <p class="hint" id="hint"></p>
             <button class="btn primary hidden" id="btnPenalty">⚽ Tendang Penalti</button>
@@ -83,18 +87,19 @@
           <h3>Aturan Singkat</h3>
           <ul>
             <li>Giliran bergantian, <b>30 detik</b> per giliran. Waktu habis = giliran lewat.</li>
-            <li>Tiap giliran pilih satu: <b>gerakkan 1 pemain</b> (lurus maks <b>3 kotak</b>, diagonal maks <b>1 kotak</b>), atau pembawa bola <b>menendang / menggiring</b>.</li>
-            <li>Kiper hanya bisa <b>naik/turun</b> di area gawang.</li>
-            <li>Gerak ke kotak bola atau selesai menggiring: boleh <b>langsung menendang</b> di giliran yang sama.</li>
-            <li>Operan kena teman: teman itu boleh <b>langsung menendang lagi</b> (berantai) selama waktu giliran masih ada.</li>
+            <li>Tiap giliran punya <b>12 energi</b>. Sisa energi hangus di akhir giliran.</li>
+            <li>Biaya energi: <b>gerak</b> 1 + 1/kotak (diagonal 1 + 2), <b>giring</b> 2/kotak (diagonal 3), <b>rebut bola</b> +2, <b>oper</b> 2 (≤3 kotak) / 3 (≤6) / 4 (lebih jauh), <b>tembak</b> 3 (+1 jika lebih dari 6 kotak).</li>
+            <li>Boleh menggerakkan <b>beberapa pemain</b>, tapi tiap pemain hanya bisa <b>bergerak/menggiring 1x</b> per giliran (lurus maks <b>3 kotak</b>, diagonal maks <b>1</b>). Menendang boleh berkali-kali selama energi cukup.</li>
+            <li>Bola berhenti di <b>lawan</b>: sisa energi hangus, giliran berganti. Bola berhenti di <b>ruang kosong</b> atau di teman: giliran lanjut.</li>
+            <li>Kiper hanya bisa <b>naik/turun</b> di area kiper. Pemain lain <b>tidak bisa masuk area kiper</b> dan <b>tidak bisa merebut bola dari kiper</b>.</li>
             <li>Gerak ke kotak lawan pembawa bola = <b>rebut bola</b>. Lawan tergeser 1 kotak.</li>
             <li><b>Tendangan bebas arah</b>: bidik ke titik mana saja (tidak hanya 8 arah), sistem menghitung kotak yang dilewati bola. Bola berhenti di kotak tujuan.</li>
             <li><b>Panjang tendangan</b> bisa diatur (slider 📏 atau scroll di lapangan). <b>Otomatis</b> = sampai titik bidik. Makin panjang, makin kecil peluang sampai.</li>
             <li><b>Lambung otomatis</b> saat melewati lawan: dekat <b>50%</b> (kiper di jalur <b>40%</b>), makin jauh makin kecil, <b>0%</b> mulai jarak 9 (kiper 8).</li>
             <li>Tembakan ke gawang selalu bisa <b>ditepis kiper</b>: lolos <b>60%</b> dari dekat, turun sampai <b>0%</b> di jarak 9.</li>
+            <li>Menembak dari <b>depan gawang</b> (kotak penalti): peluang lolos kiper naik jadi <b>80%</b> (kiper tepat di jalur <b>60%</b>).</li>
             <li>Tendangan lebih dari <b>4 kotak</b> bisa <b>berhenti di tengah jalan</b> (peluang sampai turun 10% per kotak).</li>
-            <li>Maksimal <b>3x operan</b> ke teman per giliran.</li>
-            <li>Merebut bola: <b>25%</b> pelanggaran. Di kotak penalti = <b>PENALTI</b> (kiper menahan 20%). Di luar = <b>tendangan bebas</b>; di area lawan ada <b>1 pemain pagar</b>.</li>
+            <li>Merebut bola: <b>25%</b> pelanggaran. Di kotak penalti = <b>PENALTI</b> (kiper menahan 20%). Di luar = <b>tendangan bebas</b> (gratis, energi penuh dipakai setelahnya); di area lawan ada <b>1 pemain pagar</b>.</li>
             <li>Pelanggaran: <b>peringatan</b> (55%), <b>kartu kuning</b> (35%), atau <b>merah langsung</b> (10%). Kuning kedua = <b>merah</b>, pemain keluar lapangan.</li>
             <li>2 × 5 menit. Saat turun minum, tim bertukar gawang.</li>
           </ul>

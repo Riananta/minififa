@@ -15,11 +15,23 @@ const CONFIG = {
   OVER_BASE: 0.50, OVER_FULL: 2, OVER_ZERO: 9,   // melewati pemain lapangan lawan
   GK_BASE: 0.40,   GK_FULL: 2,   GK_ZERO: 8,     // menembus kiper yang tepat di jalur bola
   GK_DIVE_BASE: 0.60, GK_DIVE_ZERO: 9,           // lolos dari tepisan kiper (bola tidak lurus ke kiper)
+  // Menembak dari depan gawang (kotak penalti): peluang gol lebih tinggi
+  GK_BOX_LINE: 0.60,   // menembus kiper yang tepat di jalur bola
+  GK_BOX_DIVE: 0.80,   // lolos dari tepisan kiper
   // Tendangan jauh bisa berhenti di tengah jalan
   REACH_SAFE: 4,       // sampai jarak ini bola pasti sampai tujuan
   REACH_DROP: 0.10,    // tiap 1 kotak lebih jauh, peluang sampai turun 10%
   REACH_MIN: 0.25,     // peluang sampai paling kecil
-  MAX_PASS: 3,         // maksimal operan ke teman per giliran
+  // Energi giliran
+  ENERGY: 12,          // energi tiap giliran (sisa hangus di akhir giliran)
+  COST_MOVE_BASE: 1,   // biaya mengaktifkan pemain tanpa bola
+  COST_STEP: 1,        // gerak lurus per kotak
+  COST_DIAG: 2,        // gerak diagonal
+  COST_DRIBBLE: 2,     // giring lurus per kotak
+  COST_DRIBBLE_DIAG: 3,// giring diagonal
+  COST_STEAL: 2,       // tambahan saat merebut bola
+  COST_PASS: [2, 3, 4],// oper/tendang: <= 3 kotak, <= 6 kotak, lebih jauh
+  COST_SHOT: 3,        // tembak ke gawang (+1 jika lebih dari 6 kotak)
   FOUL_CHANCE: 0.25,   // peluang pelanggaran saat merebut bola
   // Kartu saat pelanggaran (sisanya = hanya peringatan)
   CARD_YELLOW: 0.35,
@@ -64,10 +76,10 @@ const S = {
   ball: { x: 6, y: 2 },
   selected: null,
   mode: 'move',       // move | kick
-  moved: null,        // id pemain yang barusan bergerak/menerima bola (boleh langsung tendang)
+  energy: CONFIG.ENERGY, // energi giliran tersisa
+  used: new Set(),    // id pemain yang sudah bergerak/menggiring giliran ini (maks 1x per pemain)
   action: 'kick',     // pilihan pembawa bola: kick | dribble
   pickOther: false,   // pembawa bola memilih menggerakkan pemain lain
-  passes: 0,          // jumlah operan sukses di giliran ini
   aim: null,          // titik bidik (koordinat kotak, desimal) saat mode tendang
   kickLen: 0,         // panjang tendangan pilihan pemain (kotak); 0 = otomatis sampai titik bidik
   cards: {},          // id pemain -> jumlah kartu kuning
@@ -89,6 +101,8 @@ const inField = (x, y) => x >= 1 && x <= CONFIG.COLS && y >= 0 && y < CONFIG.ROW
 const playerAt = (x, y) => S.players.find(p => p.x === x && p.y === y);
 const holder = () => playerAt(S.ball.x, S.ball.y);
 const getSel = () => S.players.find(p => p.id === S.selected);
+// Area kiper: kolom paling depan di depan mulut gawang. Hanya kiper yang boleh berada di sini.
+const isGkArea = (x, y) => (x === 1 || x === CONFIG.COLS) && CONFIG.GOAL_ROWS.includes(y);
 const teamName = t => TEAMS[t].name;
 
 /* =========================================================
@@ -113,16 +127,23 @@ function setupKickoff(team) {
   S.ball = { x: sideOf(team) === 'left' ? 6 : 7, y: 2 };
   S.setPiece = null;
   S.penalty = null;
-  S.turn = team;
-  S.turnTime = CONFIG.TURN_SECONDS;
-  S.selected = null;
-  S.moved = null;
-  S.action = 'kick';
-  S.pickOther = false;
-  S.passes = 0;
-  S.aim = null;
+  newTurn(team);
   S.phase = 'play';
   refresh();
+}
+
+// Mulai giliran baru untuk tim t: waktu & energi penuh
+function newTurn(t) {
+  S.turn = t;
+  S.turnTime = CONFIG.TURN_SECONDS;
+  S.energy = CONFIG.ENERGY;
+  S.used = new Set();
+  S.selected = null;
+  S.action = 'kick';
+  S.pickOther = false;
+  S.aim = null;
+  S.setPiece = null;
+  S.wall = null;
 }
 
 // Target gerak: lurus 4 arah (kiper hanya naik/turun di area gawang).
@@ -135,20 +156,26 @@ function moveTargets(p) {
     : [...DIRS4.map(d => [...d, CONFIG.MAX_MOVE]), ...DIRS8.slice(4).map(d => [...d, CONFIG.MAX_DIAG])];
   const dribbling = S.ball.x === p.x && S.ball.y === p.y;
   for (const [dx, dy, max] of dirs) {
+    const diag = dx !== 0 && dy !== 0;
     for (let s = 1; s <= max; s++) {
       const nx = p.x + dx * s, ny = p.y + dy * s;
       if (!inField(nx, ny)) break;
       if (p.role === 'GK' && !CONFIG.GOAL_ROWS.includes(ny)) break;
+      if (p.role !== 'GK' && isGkArea(nx, ny)) break; // area kiper terlarang
+      const cost = dribbling
+        ? (diag ? CONFIG.COST_DRIBBLE_DIAG : CONFIG.COST_DRIBBLE * s)
+        : CONFIG.COST_MOVE_BASE + (diag ? CONFIG.COST_DIAG : CONFIG.COST_STEP * s);
       const q = playerAt(nx, ny);
       if (q) {
         const isHolder = S.ball.x === nx && S.ball.y === ny;
-        if (q.team !== p.team && isHolder && !dribbling) {
+        // bola tidak bisa direbut dari kiper
+        if (q.team !== p.team && isHolder && !dribbling && q.role !== 'GK') {
           const push = pushCell(q, p);
-          if (push) res.push({ x: nx, y: ny, steal: q, push });
+          if (push) res.push({ x: nx, y: ny, steal: q, push, cost: cost + CONFIG.COST_STEAL });
         }
         break;
       }
-      res.push({ x: nx, y: ny });
+      res.push({ x: nx, y: ny, cost });
     }
   }
   return res;
@@ -158,7 +185,7 @@ function moveTargets(p) {
 // diutamakan mundur ke arah gawangnya sendiri.
 function pushCell(victim, mover) {
   const ownGoalX = sideOf(victim.team) === 'left' ? 0 : CONFIG.COLS + 1;
-  const free = (x, y) => inField(x, y) && !(x === mover.x && y === mover.y ? false : playerAt(x, y));
+  const free = (x, y) => inField(x, y) && !isGkArea(x, y) && !(x === mover.x && y === mover.y ? false : playerAt(x, y));
   const cands = victim.role === 'GK'
     ? [[0, 1], [0, -1]].map(([dx, dy]) => ({ x: victim.x + dx, y: victim.y + dy }))
         .filter(c => CONFIG.GOAL_ROWS.includes(c.y))
@@ -179,9 +206,10 @@ const isGoalCell = (x, y) => (x === 0 || x === CONFIG.COLS + 1) && CONFIG.GOAL_R
 const falloff = (d, base, full, zero) => base * Math.max(0, Math.min(1, (zero - d) / (zero - full)));
 
 // Peluang lambung otomatis melewati lawan p, bergantung jarak tendangan d (kotak)
-function overChance(p, d, dive = false) {
-  if (dive) return falloff(d, CONFIG.GK_DIVE_BASE, CONFIG.GK_FULL, CONFIG.GK_DIVE_ZERO);
-  if (p.role === 'GK') return falloff(d, CONFIG.GK_BASE, CONFIG.GK_FULL, CONFIG.GK_ZERO);
+// close = ditendang dari depan gawang (kotak penalti lawan)
+function overChance(p, d, dive = false, close = false) {
+  if (dive) return close ? CONFIG.GK_BOX_DIVE : falloff(d, CONFIG.GK_DIVE_BASE, CONFIG.GK_FULL, CONFIG.GK_DIVE_ZERO);
+  if (p.role === 'GK') return close ? CONFIG.GK_BOX_LINE : falloff(d, CONFIG.GK_BASE, CONFIG.GK_FULL, CONFIG.GK_ZERO);
   return falloff(d, CONFIG.OVER_BASE, CONFIG.OVER_FULL, CONFIG.OVER_ZERO);
 }
 
@@ -244,17 +272,28 @@ function planKick(k, aim) {
     if (!p) return;
     if (i === path.length - 1) { receiver = p; return; }
     if (p.team === k.team) return;
-    blockers.push({ at: i, p, chance: overChance(p, d) });
+    const close = p.role === 'GK' && inBox(from.x, from.y, sideOf(p.team));
+    blockers.push({ at: i, p, chance: overChance(p, d, false, close) });
   });
   // tembakan ke gawang: kiper selalu berusaha menepis walau tidak tepat di jalur bola
   if (goal) {
     const gk = S.players.find(p => p.role === 'GK' && sideOf(p.team) === goal);
     if (gk && !blockers.some(b => b.p === gk))
-      blockers.push({ at: path.length - 1, p: gk, chance: overChance(gk, d, true), dive: true });
+      blockers.push({ at: path.length - 1, p: gk, chance: overChance(gk, d, true, inBox(from.x, from.y, goal)), dive: true });
   }
   const reach = reachChance(d);
   const success = blockers.reduce((a, b) => a * b.chance, reach);
-  return { from, path, goal, d, blockers, receiver, reach, success };
+  const plan = { from, path, goal, d, blockers, receiver, reach, success };
+  plan.cost = kickCost(plan);
+  return plan;
+}
+
+// Biaya energi tendangan (tendangan bebas gratis: energi berlaku setelah bola dimainkan)
+function kickCost(plan) {
+  if (S.setPiece === 'free') return 0;
+  if (plan.goal) return CONFIG.COST_SHOT + (plan.d > 6 ? 1 : 0);
+  const [a, b, c] = CONFIG.COST_PASS;
+  return plan.d <= 3 ? a : plan.d <= 6 ? b : c;
 }
 
 // Undi hasil tendangan sebenarnya
@@ -289,63 +328,69 @@ function refresh() {
   if (S.phase !== 'play') return;
   const h = holder();
   const ownHolder = h && h.team === S.turn ? h : null;
-
-  // Sudah bergerak ke kotak bola giliran ini: boleh langsung menendang
-  if (S.moved) {
-    if (S.action === 'dribble') S.action = 'kick';
-    S.mode = 'kick';
-    S.selected = S.moved;
-    S.hint = (S.setPiece === 'free'
-      ? `<b>TENDANGAN BEBAS</b> #${h.num}: bidik ke arah mana saja lalu klik untuk menendang.${S.wall ? ' Pagar lawan ditandai.' : ''}`
-      : `<b>#${h.num}</b> menguasai bola. Bidik ke mana saja & klik untuk <b>langsung menendang</b>, atau tekan <b>Selesai Giliran</b>.`) + passInfo();
-    return;
-  }
+  const afford = t => t.cost <= S.energy;
 
   // Tim sendiri membawa bola: pembawa bola terpilih otomatis
   if (ownHolder && !S.selected && !S.pickOther) S.selected = ownHolder.id;
   const sel = getSel();
 
   if (sel && sel === ownHolder) {
-    if (S.action === 'dribble') {
-      S.targets = moveTargets(sel);
-      S.hint = `<b>#${sel.num}</b> <b>menggiring</b> bola: klik kotak tujuan (lurus maks ${CONFIG.MAX_MOVE}, diagonal maks ${CONFIG.MAX_DIAG}).`;
+    if (S.action === 'dribble' && !S.used.has(sel.id) && !S.setPiece) {
+      S.targets = moveTargets(sel).filter(afford);
+      S.hint = `<b>#${sel.num}</b> <b>menggiring</b> bola: klik kotak tujuan (${CONFIG.COST_DRIBBLE} energi/kotak, diagonal ${CONFIG.COST_DRIBBLE_DIAG}).`;
       return;
     }
+    S.action = 'kick';
     S.mode = 'kick';
-    S.hint = `<b>#${sel.num}</b> membawa bola: arahkan kursor <b>ke mana saja</b> lalu klik untuk menendang, atau ganti aksi di kanan.` + passInfo();
+    S.hint = S.setPiece === 'free'
+      ? `<b>TENDANGAN BEBAS</b> #${sel.num}: bidik ke arah mana saja lalu klik untuk menendang (tanpa energi).${S.wall ? ' Pagar lawan ditandai.' : ''}`
+      : `<b>#${sel.num}</b> membawa bola: bidik <b>ke mana saja</b> lalu klik untuk menendang` +
+        (S.used.has(sel.id) ? '.' : ', atau ganti aksi di kanan.');
     return;
   }
-  if (sel && sel.team === S.turn) {
-    S.targets = moveTargets(sel);
+  if (sel && sel.team === S.turn && !S.used.has(sel.id)) {
+    S.targets = moveTargets(sel).filter(afford);
     const steal = S.targets.some(t => t.steal);
     S.hint = (sel.role === 'GK'
-      ? `Kiper <b>#${sel.num}</b>: klik kotak tujuan (naik/turun di area gawang)`
-      : `Klik kotak tujuan untuk <b>#${sel.num}</b> (lurus maks ${CONFIG.MAX_MOVE}, diagonal maks ${CONFIG.MAX_DIAG})`) +
+      ? `Kiper <b>#${sel.num}</b>: klik kotak tujuan (naik/turun di area kiper)`
+      : `Klik kotak tujuan untuk <b>#${sel.num}</b>, angka = biaya energi`) +
       (steal ? `. Lingkaran merah = <b>rebut bola</b>.` : `, atau pilih pemain lain.`);
+    if (!S.targets.length) S.hint = `<b>#${sel.num}</b> tidak bisa bergerak (energi kurang / terhalang). Pilih pemain lain.`;
     return;
   }
   S.selected = null;
   S.aim = null;
-  S.hint = `Pilih <b>1 pemain</b> untuk digerakkan (lurus maks ${CONFIG.MAX_MOVE} kotak, diagonal maks ${CONFIG.MAX_DIAG}).`;
-  if (h) S.hint += ` Dekati pembawa bola lawan untuk <b>merebut</b> bola.`;
+  S.hint = `Pilih pemain untuk digerakkan (tiap pemain maks 1x per giliran).`;
+  if (ownHolder) S.hint += ` Klik <b>#${ownHolder.num}</b> untuk menendang/menggiring.`;
+  else if (h) S.hint += ` Dekati pembawa bola lawan untuk <b>merebut</b> bola.`;
+  else S.hint += ` Gerak ke kotak bola untuk <b>menguasai</b> bola.`;
 }
 
-function passInfo() {
-  return ` <span class="passes">Operan ${S.passes}/${CONFIG.MAX_PASS}</span>`;
+// Masih ada aksi yang bisa dilakukan dengan sisa energi?
+function canAct() {
+  const minKick = Math.min(...CONFIG.COST_PASS, CONFIG.COST_SHOT);
+  const h = holder();
+  if (h && h.team === S.turn && S.energy >= minKick) return true;
+  return S.players.some(p => p.team === S.turn && !S.used.has(p.id) &&
+    moveTargets(p).some(t => t.cost <= S.energy));
+}
+
+// Setelah satu aksi selesai: lanjut giliran, atau akhiri jika energi tidak cukup lagi
+function continueTurn() {
+  S.phase = 'play';
+  S.aim = null;
+  if (!canAct()) {
+    addLog(`Energi ${teamName(S.turn)} habis, giliran berganti`, S.turn, 'info');
+    endTurn();
+    return;
+  }
+  refresh();
+  render();
 }
 
 function endTurn() {
   if (S.clock <= 0) { endHalf(); return; }
-  S.turn = other(S.turn);
-  S.turnTime = CONFIG.TURN_SECONDS;
-  S.selected = null;
-  S.moved = null;
-  S.action = 'kick';
-  S.pickOther = false;
-  S.passes = 0;
-  S.aim = null;
-  S.setPiece = null;
-  S.wall = null;
+  newTurn(other(S.turn));
   S.phase = 'play';
   refresh();
   render();
@@ -353,9 +398,10 @@ function endTurn() {
 
 function setAction(act) {
   if (S.phase !== 'play' || S.paused) return;
-  if (S.moved && act !== 'kick') return; // setelah bergerak/menerima operan hanya bisa menendang
+  if (S.setPiece) return; // tendangan bebas harus ditendang dulu
   const h = holder();
   if (!h || h.team !== S.turn) return;
+  if (act === 'dribble' && S.used.has(h.id)) return; // sudah bergerak/menggiring giliran ini
   S.aim = null;
   if (act === 'other') {
     // pembawa bola diam, pilih pemain lain untuk digerakkan
@@ -375,14 +421,15 @@ function setAction(act) {
    AKSI
    ========================================================= */
 function onPlayerClick(id) {
-  if (S.phase !== 'play' || S.paused || S.moved) return;
+  if (S.phase !== 'play' || S.paused || S.setPiece) return;
   const p = S.players.find(q => q.id === id);
   if (!p || p.team !== S.turn) return;
   const isHolder = holder() === p;
+  if (!isHolder && S.used.has(p.id)) return; // pemain ini sudah bergerak giliran ini
   S.aim = null;
   if (isHolder && S.selected === id) {
     // klik pembawa bola lagi = ganti aksi: Tendang <-> Giring
-    S.action = S.action === 'kick' ? 'dribble' : 'kick';
+    S.action = S.action === 'kick' && !S.used.has(p.id) ? 'dribble' : 'kick';
   } else {
     S.selected = S.selected === id ? null : id;
     S.pickOther = !S.selected && holder() && holder().team === S.turn;
@@ -396,7 +443,9 @@ async function onTargetClick(t) {
   if (S.phase !== 'play' || S.paused) return;
   if (S.mode === 'move') {
     const p = getSel();
-    if (!p) return;
+    if (!p || t.cost > S.energy) return;
+    S.energy -= t.cost;
+    S.used.add(p.id);
     if (t.steal && Math.random() < CONFIG.FOUL_CHANCE) {
       await handleFoul(p, t.steal, t);
       return;
@@ -415,14 +464,16 @@ async function onTargetClick(t) {
     await sleep(320);
     els.ball.classList.remove('dribble');
     if (got) {
-      // boleh langsung menendang di giliran yang sama
-      S.moved = p.id;
-      S.phase = 'play';
-      refresh();
-      render();
+      // menguasai bola: pemain ini terpilih untuk menendang
+      S.selected = p.id;
+      S.pickOther = false;
     } else {
-      endTurn();
+      // lanjut menggerakkan pemain lain
+      S.selected = null;
+      S.pickOther = true;
     }
+    S.action = 'kick';
+    continueTurn();
   }
 }
 
@@ -496,13 +547,8 @@ function setupPenalty(victim, defTeam) {
   const gk = S.players.find(p => p.team === defTeam && p.role === 'GK');
   if (gk) gk.y = 2;                             // kiper di tengah gawang (jika masih ada)
   S.ball = { x: taker.x, y: taker.y };
-  S.turn = victim.team;
-  S.turnTime = CONFIG.TURN_SECONDS;
+  newTurn(victim.team);
   S.selected = taker.id;
-  S.moved = null;
-  S.passes = 0;
-  S.aim = null;
-  S.setPiece = null;
   S.penalty = { taker: taker.id, def: defTeam };
   S.phase = 'penalty';
   S.targets = [];
@@ -562,7 +608,7 @@ function setupFreeKick(victim, defTeam) {
       { x: ball.x + 2 * dx, y: ball.y },
       { x: ball.x + 2 * dx, y: ball.y + dy },
     ];
-    const spot = cands.find(c => inField(c.x, c.y) && (!playerAt(c.x, c.y) || isDefField(playerAt(c.x, c.y), defTeam)));
+    const spot = cands.find(c => inField(c.x, c.y) && !isGkArea(c.x, c.y) && (!playerAt(c.x, c.y) || isDefField(playerAt(c.x, c.y), defTeam)));
     if (spot) {
       wall = playerAt(spot.x, spot.y);
       if (!wall || !isDefField(wall, defTeam)) {
@@ -573,14 +619,9 @@ function setupFreeKick(victim, defTeam) {
     }
   }
 
-  S.turn = victim.team;
-  S.turnTime = CONFIG.TURN_SECONDS;
+  newTurn(victim.team);       // energi penuh, berlaku setelah tendangan bebas
   S.selected = victim.id;
-  S.moved = victim.id;      // penendang langsung dalam mode tendang (tanpa giring)
-  S.action = 'kick';
-  S.pickOther = false;
-  S.passes = 0;
-  S.aim = null;
+  S.used.add(victim.id);      // penendang langsung menendang (tanpa giring)
   S.setPiece = 'free';
   S.wall = wall ? wall.id : null;
   S.phase = 'play';
@@ -597,6 +638,7 @@ function freeCellNear(q, ok, ownGoalX) {
   for (let y = 0; y < CONFIG.ROWS; y++)
     for (let x = 1; x <= CONFIG.COLS; x++) {
       if (q.role === 'GK' && (x !== q.x || !CONFIG.GOAL_ROWS.includes(y))) continue;
+      if (q.role !== 'GK' && isGkArea(x, y)) continue;
       if (playerAt(x, y) || (S.ball.x === x && S.ball.y === y) || !ok({ x, y })) continue;
       cells.push({ x, y });
     }
@@ -607,6 +649,8 @@ function freeCellNear(q, ok, ownGoalX) {
 
 async function doKick(plan) {
   const k = holder();
+  if (plan.cost > S.energy) return;
+  S.energy -= plan.cost;
   S.setPiece = null;
   S.wall = null;
   S.phase = 'animating';
@@ -650,27 +694,21 @@ async function doKick(plan) {
   if (r) S.ball = { x: r.x, y: r.y }; // bola dikuasai penerima (mis. kiper yang menepis)
   const ownPass = r && r.team === k.team && r !== k;
   if (!r || r === k) { if (!sim.short) addLog(`${teamName(k.team)} #${k.num} menendang bola`, k.team); }
-  else if (ownPass) addLog(`${teamName(k.team)} #${k.num} mengoper ke #${r.num} (${S.passes + 1}/${CONFIG.MAX_PASS})`, k.team);
+  else if (ownPass) addLog(`${teamName(k.team)} #${k.num} mengoper ke #${r.num}`, k.team);
   else if (r.role === 'GK') addLog(`Kiper ${teamName(r.team)} #${r.num} menangkap tendangan #${k.num}`, r.team);
   else addLog(`Tendangan #${k.num} dipotong ${teamName(r.team)} #${r.num}`, r.team);
   renderBall();
   await sleep(150);
-  if (ownPass) {
-    S.passes++;
-    if (S.passes >= CONFIG.MAX_PASS) {
-      addLog(`Batas ${CONFIG.MAX_PASS}x operan tercapai, giliran berakhir`, k.team, 'info');
-      await sleep(250);
-      endTurn();
-      return;
-    }
-    // operan sukses: penerima boleh langsung menendang (berantai)
-    S.moved = r.id;
-    S.phase = 'play';
-    refresh();
-    render();
-  } else {
+  if (r && !ownPass) {
+    // bola berhenti di lawan: sisa energi hangus, giliran berganti
     endTurn();
+    return;
   }
+  // operan sukses / bola di ruang kosong: sisa energi masih bisa dipakai
+  S.selected = ownPass ? r.id : null;
+  S.pickOther = false;
+  S.action = 'kick';
+  continueTurn();
 }
 
 async function handleGoal(side, kicker) {
@@ -834,7 +872,8 @@ function renderPieces() {
       (p.role === 'GK' ? ' gk' : '') +
       (S.selected === p.id ? ' selected' : '') +
       (h === p ? ' holder' : '') +
-      (S.phase === 'play' && !S.moved && p.team === S.turn ? ' can-select' : '') +
+      (S.phase === 'play' && !S.setPiece && p.team === S.turn && (h === p || !S.used.has(p.id)) ? ' can-select' : '') +
+      (S.phase === 'play' && p.team === S.turn && S.used.has(p.id) && h !== p ? ' used' : '') +
       (playing && p.team !== S.turn ? ' inactive' : '') +
       (S.wall === p.id ? ' wall' : '') +
       (S.cards[p.id] ? ' booked' : '') +
@@ -858,6 +897,7 @@ function renderTargets() {
     place(b, t.x, t.y);
     b.onclick = () => onTargetClick(t);
     b.className = 'at target ' + (t.steal ? 'steal' : 'move');
+    b.innerHTML = `<span class="cost">${t.cost}</span>`;
     b.setAttribute('aria-label', t.steal ? `Rebut bola dari #${t.steal.num}` : `Kotak ${t.x},${t.y + 1}`);
     if (t.steal) b.title = `Rebut bola dari #${t.steal.num}`;
     layer.appendChild(b);
@@ -902,13 +942,13 @@ function buildAim(layer) {
     const h = holder();
     if (h && Math.floor(g.x) === h.x && Math.floor(g.y) === h.y) {
       // klik pembawa bola = ganti ke giring (jika masih boleh)
-      if (!S.moved) setAction('dribble');
+      setAction('dribble');
       return;
     }
     // sentuh: ketuk pertama = pratinjau, ketuk lagi di kotak sama = tendang
     if (e.pointerType !== 'mouse' && !sameCell(g, S.aim)) { S.aim = g; drawAim(); return; }
     const plan = h && planKick(h, g);
-    if (plan) doKick(plan);
+    if (plan && plan.cost <= S.energy) doKick(plan);
   };
   drawAim();
 }
@@ -951,7 +991,9 @@ function drawAim() {
     : r && r.team === h.team ? `Oper ke #${r.num}`
     : r ? `Ke lawan #${r.num}!`
     : 'Tendang ke ruang kosong';
-  const parts = [`<b>${what}</b> · jarak ${plan.d.toFixed(1)}`];
+  const parts = [`<b>${what}</b> · ⚡${plan.cost} · jarak ${plan.d.toFixed(1)}`];
+  const poor = plan.cost > S.energy;
+  if (poor) parts.push('<b>energi kurang</b>');
   if (!inside && !plan.goal) parts.push('mentok batas lapangan');
   if (plan.reach < 1) parts.push(`sampai ${pct(plan.reach)}`);
   const over = plan.blockers.filter(b => b.p.role !== 'GK'), gk = plan.blockers.find(b => b.p.role === 'GK');
@@ -960,7 +1002,7 @@ function drawAim() {
   if (!(r && r.team !== h.team)) parts.push(`<b>berhasil ${pct(plan.success)}</b>`);
   label.innerHTML = parts.join(' · ');
   label.classList.remove('hidden');
-  label.classList.toggle('bad', !!(r && r.team !== h.team) || plan.success < 0.15);
+  label.classList.toggle('bad', poor || !!(r && r.team !== h.team) || plan.success < 0.15);
   place(label, end.x, end.y);
   label.classList.toggle('below', end.y === 0);
 }
@@ -1019,6 +1061,13 @@ function renderHud() {
   $('turnSec').classList.toggle('low', low);
   $('timerFill').style.width = (active ? (Math.max(0, S.turnTime) / CONFIG.TURN_SECONDS) * 100 : 0) + '%';
   $('timerFill').classList.toggle('low', low);
+  const showE = active || pen;
+  $('energy').classList.toggle('dim', !showE);
+  $('energyVal').textContent = `${showE ? S.energy : CONFIG.ENERGY}/${CONFIG.ENERGY}`;
+  const pips = $('energyPips');
+  if (pips.childElementCount !== CONFIG.ENERGY)
+    pips.innerHTML = '<i></i>'.repeat(CONFIG.ENERGY);
+  [...pips.children].forEach((d, i) => d.classList.toggle('on', i < (showE ? S.energy : CONFIG.ENERGY)));
   $('hint').innerHTML = S.phase === 'play' ? S.hint
     : pen ? (() => {
         const tk = S.players.find(p => p.id === S.penalty.taker);
@@ -1031,13 +1080,15 @@ function renderHud() {
   $('btnPause').textContent = S.paused ? '▶ Lanjut' : '⏸ Pause';
   $('btnSkip').disabled = S.phase !== 'play' || S.paused;
   const h = holder();
-  const showAct = S.phase === 'play' && !S.paused && h && h.team === S.turn && !S.moved;
+  const showAct = S.phase === 'play' && !S.paused && h && h.team === S.turn && !S.setPiece;
   $('holderActions').classList.toggle('hidden', !showAct);
+  document.querySelector('[data-act="dribble"]').classList.toggle('hidden', !!(h && S.used.has(h.id)));
   $('powerBox').classList.toggle('hidden', !(S.phase === 'play' && !S.paused && S.mode === 'kick'));
   const cur = S.selected === (h && h.id) ? S.action : 'other';
   document.querySelectorAll('[data-act]').forEach(b => b.classList.toggle('on', b.dataset.act === cur));
-  $('btnSkip').textContent = S.moved ? '✓ Selesai Giliran' : '⏭ Lewati Giliran';
-  $('btnSkip').classList.toggle('primary', !!S.moved);
+  const spent = S.energy < CONFIG.ENERGY;
+  $('btnSkip').textContent = spent ? '✓ Selesai Giliran' : '⏭ Lewati Giliran';
+  $('btnSkip').classList.toggle('primary', spent);
 }
 
 function render() { renderPieces(); renderBall(); renderTargets(); renderHud(); }
@@ -1083,7 +1134,7 @@ renderPower();
 document.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => setAction(b.dataset.act); });
 $('btnSkip').onclick = () => {
   if (S.phase !== 'play' || S.paused) return;
-  if (!S.moved) addLog(`${teamName(S.turn)} melewati giliran`, S.turn);
+  if (S.energy >= CONFIG.ENERGY) addLog(`${teamName(S.turn)} melewati giliran`, S.turn);
   endTurn();
 };
 $('btnRestart').onclick = () => {
