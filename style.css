@@ -117,13 +117,6 @@ main { min-width: 0; }
 .seg button.hidden { display: none; }
 
 /* peluang lolos & lambung */
-.target.arrow .pct {
-  position: absolute; bottom: 2px; right: 2px;
-  font-size: max(9px, calc(var(--cell) * .2)); font-weight: 900; line-height: 1;
-  background: #0b1220; color: #fca5a5; border: 1px solid #f87171;
-  border-radius: 5px; padding: 2px 3px; pointer-events: none;
-}
-.target.arrow.chip svg { fill: #a5f3fc; }
 .pathdot.air::after { width: 26%; height: 26%; background: transparent; border: 2px solid #a5f3fc; }
 .pathdot.end.foe::after { border-color: #f87171; }
 .pathdot[data-pct]::before {
@@ -232,19 +225,42 @@ main { min-width: 0; }
 .pathdot.end.recv::after { width: 86%; height: 86%; }
 .pathdot.end.goal::after { border-style: solid; box-shadow: 0 0 14px 3px rgba(251,191,36,.7); }
 
-/* ---- panah tendangan (8 arah, bisa di atas pemain) ---- */
-.target.arrow { z-index: 3; }
-.target.arrow::after { display: none; }
-.target.arrow .rot { width: 74%; height: 74%; display: grid; }
-.target.arrow svg {
-  width: 100%; height: 100%;
-  fill: #fff; stroke: #0b1220; stroke-width: 1.4; stroke-linejoin: round;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,.6));
-  transition: transform .15s;
+/* ---- bidik tendangan bebas arah ---- */
+.aim { position: absolute; inset: 0; z-index: 5; cursor: crosshair; touch-action: none; }
+.aim svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.aim line { stroke: var(--gold); stroke-width: 3; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; opacity: .85; }
+.aim-label {
+  pointer-events: none !important; width: auto; height: auto; z-index: 7;
+  transform: translate(calc(var(--cell) * .5 - 50%), -110%);
+  white-space: nowrap; font-size: 12px; font-weight: 700; color: #1a1205;
+  background: var(--gold); border-radius: 8px; padding: 4px 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.45);
 }
-.target.arrow:hover { background: rgba(251,191,36,.25); }
-.target.arrow:hover svg { fill: var(--gold); }
-.target.arrow.goal svg { fill: var(--gold); animation: pulse 1s infinite; }
+.aim-label.below { transform: translate(calc(var(--cell) * .5 - 50%), calc(var(--cell) + 6px)); }
+.aim-label.bad { background: #f87171; color: #fff; }
+.aim-label.hidden { display: none; }
+.passes {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px;
+  background: #0a1120; border: 1px solid var(--border); color: var(--text); font-weight: 700; font-size: 12px;
+}
+
+/* ---- kartu wasit ---- */
+.ref-card {
+  width: 54px; height: 76px; margin: 0 auto 10px; border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5); transform: rotate(-8deg);
+  animation: cardpop .4s ease;
+}
+.ref-card.warn { background: #e2e8f0; width: 76px; height: 54px; border-radius: 50%; display: grid; place-items: center; }
+.ref-card.warn::after { content: "!"; font-size: 34px; font-weight: 900; color: #0b1220; }
+.ref-card.yellow { background: #facc15; }
+.ref-card.red { background: #dc2626; }
+.ref-card.second { background: linear-gradient(135deg, #facc15 50%, #dc2626 50%); }
+@keyframes cardpop { from { transform: rotate(-30deg) scale(.4); opacity: 0; } }
+.player.booked .token::before {
+  content: ""; position: absolute; top: -6px; left: -6px;
+  width: 9px; height: 13px; border-radius: 2px; background: #facc15;
+  border: 1px solid #0b1220; transform: rotate(-12deg);
+}
 
 @keyframes pulse { 50% { transform: scale(1.25); opacity: .75; } }
 

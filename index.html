@@ -51,8 +51,8 @@
             <button class="btn primary hidden" id="btnPenalty">⚽ Tendang Penalti</button>
             <div class="seg hidden" id="holderActions">
               <button data-act="kick">⚽ Tendang</button>
-              <button data-act="chip">🌈 Lambung</button>
               <button data-act="dribble">🏃 Giring</button>
+              <button data-act="other">👥 Pemain Lain</button>
             </div>
           </div>
         </section>
@@ -83,10 +83,13 @@
             <li>Gerak ke kotak bola atau selesai menggiring: boleh <b>langsung menendang</b> di giliran yang sama.</li>
             <li>Operan kena teman: teman itu boleh <b>langsung menendang lagi</b> (berantai) selama waktu giliran masih ada.</li>
             <li>Gerak ke kotak lawan pembawa bola = <b>rebut bola</b>. Lawan tergeser 1 kotak.</li>
-            <li>Tendangan kena lawan: <b>30%</b> bola lolos. Kena kiper: <b>40%</b> tembus dari dalam kotak penalti, <b>15%</b> dari luar.</li>
-            <li><b>Lambung</b>: 2 kotak pertama melayang di atas pemain (kecuali kiper).</li>
+            <li><b>Tendangan bebas arah</b>: bidik ke titik mana saja (tidak hanya 8 arah), sistem menghitung kotak yang dilewati bola. Bola berhenti di kotak tujuan.</li>
+            <li><b>Lambung otomatis</b> saat melewati lawan: dekat <b>50%</b> (kiper di jalur <b>40%</b>), makin jauh makin kecil, <b>0%</b> mulai jarak 9 (kiper 8).</li>
+            <li>Tembakan ke gawang selalu bisa <b>ditepis kiper</b>: lolos <b>60%</b> dari dekat, turun sampai <b>0%</b> di jarak 9.</li>
+            <li>Tendangan lebih dari <b>4 kotak</b> bisa <b>berhenti di tengah jalan</b> (peluang sampai turun 10% per kotak).</li>
+            <li>Maksimal <b>3x operan</b> ke teman per giliran.</li>
             <li>Merebut bola: <b>25%</b> pelanggaran. Di kotak penalti = <b>PENALTI</b> (kiper menahan 20%). Di luar = <b>tendangan bebas</b>; di area lawan ada <b>1 pemain pagar</b>.</li>
-            <li>Tendangan: <b>8 arah</b>, lurus tanpa batas jarak. Kena pemain: bola <b>dikuasai pemain itu</b>. Kena batas: bola berhenti.</li>
+            <li>Pelanggaran: <b>peringatan</b> (55%), <b>kartu kuning</b> (35%), atau <b>merah langsung</b> (10%). Kuning kedua = <b>merah</b>, pemain keluar lapangan.</li>
             <li>2 × 5 menit. Saat turun minum, tim bertukar gawang.</li>
           </ul>
         </section>
