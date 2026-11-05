@@ -81,6 +81,9 @@ const S = {
   match: null,        // konteks pertandingan liga/piala: { onEnd(home, away, events), knockout }
   events: [],         // kejadian pertandingan (gol + assist) untuk statistik liga
   lastPass: null,     // operan terakhir { from, to } untuk menentukan assist
+  stats: null,        // statistik tim untuk laporan pertandingan
+  timeline: [],       // kejadian penting + menit (gol, kartu, penalti)
+  pstats: {},         // statistik per pemain (untuk pemain terbaik)
   turnId: 0,          // bertambah tiap giliran baru (dipakai bot)
   paused: false,
   half: 1,
@@ -123,6 +126,29 @@ const isGkArea = (x, y) => (x === 1 || x === CONFIG.COLS) && CONFIG.GOAL_ROWS.in
 const teamName = t => TEAMS[t].name;
 // nama pemain (jika tim punya daftar nama), selain itu nomor punggung
 const pl = p => (p && p.name) ? p.name : `#${p ? p.num : '?'}`;
+
+/* ---------- statistik pertandingan ---------- */
+function newStats() {
+  const t = () => ({ shots: 0, onTarget: 0, saves: 0, blocks: 0, passes: 0, passOk: 0,
+                     intercepts: 0, tackles: 0, fouls: 0, yellow: 0, red: 0, poss: 0 });
+  S.stats = { home: t(), away: t() };
+  S.timeline = [];
+  S.pstats = {};
+  S.events = [];
+}
+// menit sepak bola (babak 1 = 1-45, babak 2 = 46-90) dari jam pertandingan yang dipercepat
+function matchMinute() {
+  const el = CONFIG.HALF_SECONDS - S.clock;
+  const m = Math.min(45, Math.max(1, Math.ceil(el / CONFIG.HALF_SECONDS * 45)));
+  return S.half === 2 ? m + 45 : m;
+}
+function pst(p) {
+  if (!S.pstats[p.id]) S.pstats[p.id] = { team: p.team, name: pl(p), g: 0, a: 0, sv: 0, tk: 0, bl: 0, sh: 0 };
+  return S.pstats[p.id];
+}
+function addTimeline(type, team, text) {
+  S.timeline.push({ min: matchMinute(), type, team, text });
+}
 const isBotTurn = () => S.bots.has(S.turn);
 const humanTeam = () => ['home', 'away'].find(t => !S.bots.has(t)) || null;
 
@@ -148,6 +174,13 @@ function setupKickoff(team) {
   placeFormation(team);
   S.lastPass = null;
   S.ball = { x: sideOf(team) === 'left' ? 6 : 7, y: 2 };
+  // penendang kick off (penyerang) dikartu merah: pemain terdekat menggantikan
+  if (!playerAt(S.ball.x, S.ball.y)) {
+    const order = { FW: 0, MF: 1, DF: 2, GK: 3 };
+    const sub = S.players.filter(p => p.team === team)
+      .sort((a, b) => order[a.role] - order[b.role] || Math.hypot(a.x - S.ball.x, a.y - S.ball.y) - Math.hypot(b.x - S.ball.x, b.y - S.ball.y))[0];
+    if (sub) { sub.x = S.ball.x; sub.y = S.ball.y; }
+  }
   S.setPiece = null;
   S.penalty = null;
   newTurn(team);
@@ -501,6 +534,7 @@ async function performMove(p, t) {
       if (lp && !lp.to && from && from.team === p.team && from !== p) lp.to = p.id;
       else S.lastPass = null;
     }
+    if (t.steal) { S.stats[p.team].tackles++; pst(p).tk++; }
     if (t.steal) addLog(`${teamName(p.team)} ${pl(p)} merebut bola dari ${pl(t.steal)}!`, p.team);
     else if (dribble) addLog(`${teamName(p.team)} ${pl(p)} menggiring bola`, p.team);
     else addLog(`${teamName(p.team)} ${pl(p)} bergerak${got ? ' & menguasai bola' : ''}`, p.team);
@@ -538,7 +572,9 @@ async function handleFoul(fouler, victim, t) {
   render();
   const defSide = sideOf(fouler.team);
   const pen = inBox(S.ball.x, S.ball.y, defSide);
+  S.stats[fouler.team].fouls++;
   addLog(`Pelanggaran ${teamName(fouler.team)} ${pl(fouler)} terhadap ${pl(victim)}${pen ? ' di kotak penalti!' : ''}`, fouler.team, 'info');
+  if (pen) addTimeline('pen', victim.team, `Penalti untuk ${teamName(victim.team)} (pelanggaran ${pl(fouler)})`);
   await giveCard(fouler);
   await flash(pen ? 'PENALTI!' : 'TENDANGAN BEBAS', `Pelanggaran ${pl(fouler)} · ${teamName(victim.team)}`, TEAMS[victim.team].color);
   if (pen) setupPenalty(victim, fouler.team);
@@ -562,6 +598,9 @@ async function giveCard(p) {
     red:    { title: 'KARTU MERAH',        cls: 'red',    log: `Kartu merah langsung untuk ${who}! Keluar lapangan` },
   }[card];
   addLog(info.log, p.team, 'info');
+  if (card === 'yellow') { S.stats[p.team].yellow++; addTimeline('yellow', p.team, `Kartu kuning: ${pl(p)}`); }
+  if (card === 'second') { S.stats[p.team].yellow++; S.stats[p.team].red++; addTimeline('second', p.team, `Kartu kuning kedua: ${pl(p)}, kartu merah`); }
+  if (card === 'red') { S.stats[p.team].red++; addTimeline('red', p.team, `Kartu merah langsung: ${pl(p)}`); }
   showModal(`<div class="ref-card ${info.cls}"></div>
     <div class="goal-text small">${info.title}</div>
     <p class="goal-sub" style="color:${TEAMS[p.team].color}">${who}</p>`, true);
@@ -614,7 +653,11 @@ async function takePenalty() {
     renderBall();
     await sleep(140);
   }
+  S.stats[taker.team].shots++; pst(taker).sh++;
+  S.stats[taker.team].onTarget++;
   if (gk && Math.random() < CONFIG.PEN_SAVE) {
+    S.stats[def].saves++; pst(gk).sv++;
+    addTimeline('pensave', def, `Penalti ${pl(taker)} ditahan kiper ${pl(gk)}`);
     popup(gk, 'DITAHAN!', 'bad');
     addLog(`Penalti ${pl(taker)} ditahan kiper ${teamName(def)} ${pl(gk)}!`, def, 'info');
     renderBall();
@@ -752,6 +795,23 @@ async function doKick(plan) {
     await sleep(air.has(i) ? 150 : 110);
   }
   els.ball.classList.remove('air');
+  // statistik: tembakan / operan
+  {
+    const st = S.stats[k.team];
+    const lastEv = sim.events[sim.events.length - 1];
+    const stopper = lastEv && !lastEv.through ? lastEv.p : null;
+    if (plan.goal) {
+      st.shots++; pst(k).sh++;
+      if (sim.goal) st.onTarget++;
+      else if (stopper && stopper.role === 'GK') { st.onTarget++; S.stats[stopper.team].saves++; pst(stopper).sv++; }
+      else if (stopper) { S.stats[stopper.team].blocks++; pst(stopper).bl++; }
+    } else {
+      st.passes++;
+      const r0 = sim.receiver;
+      if (r0 && r0.team === k.team && r0 !== k) st.passOk++;
+      else if (r0 && r0.team !== k.team) S.stats[r0.team].intercepts++;
+    }
+  }
   if (sim.goal) {
     await handleGoal(sim.goal, k);
     return;
@@ -791,6 +851,10 @@ async function handleGoal(side, kicker, penalty = false) {
   const assist = !own && !penalty && lp && lp.to === kicker.id && lp.from !== kicker.id
     ? S.players.find(q => q.id === lp.from) : null;
   S.events.push({ type: 'goal', team: scorer, scorer: own ? null : kicker.num, assist: assist ? assist.num : null, own });
+  if (!own) pst(kicker).g++;
+  if (assist) pst(assist).a++;
+  S.timeline.push({ min: matchMinute(), type: 'goal', team: scorer, scorer: pl(kicker), own, penalty,
+    assist: assist ? pl(assist) : null });
   S.lastPass = null;
   S.score[scorer]++;
   S.phase = 'goal';
@@ -843,8 +907,7 @@ function endHalf() {
     const m = S.match;
     showModal(`
       <h2>Full Time</h2>
-      <div class="final">${home} : ${away}</div>
-      <p style="font-size:20px;font-weight:800;color:${col}">${res}</p>
+      ${matchReport(res, col)}
       ${m && m.knockout && home === away ? '<p>Imbang di laga sistem gugur: lanjut <b>adu penalti</b>.</p>' : ''}
       <div class="btns"><button class="btn primary" id="btnAgain">${m ? 'Lanjut' : 'Main Lagi'}</button></div>`);
     $('btnAgain').onclick = () => {
@@ -855,7 +918,72 @@ function endHalf() {
   }
 }
 
+// Laporan akhir pertandingan: skor, pencetak gol, jalannya pertandingan, statistik, pemain terbaik
+function matchReport(res, col) {
+  const st = S.stats, tl = S.timeline;
+  const name = t => teamName(t);
+  // pencetak gol per tim: "Haaland 12', 67' (P)"
+  const scorers = t => {
+    const by = new Map();
+    for (const e of tl) if (e.type === 'goal' && e.team === t) {
+      const k = e.own ? `${e.scorer} (bd)` : e.scorer;
+      by.set(k, [...(by.get(k) || []), `${e.min}'${e.penalty ? ' (P)' : ''}`]);
+    }
+    return [...by.entries()].map(([n, mins]) => `<div>${n} ${mins.join(', ')}</div>`).join('') || '';
+  };
+  const icon = { goal: '⚽', yellow: '🟨', second: '🟨🟥', red: '🟥', pen: '❗', pensave: '🧤' };
+  const text = e => e.type === 'goal'
+    ? `<b>GOL ${name(e.team)}</b> · ${e.own ? `${e.scorer} (gol bunuh diri)` : `${e.scorer}${e.penalty ? ' (penalti)' : ''}`}${e.assist ? ` <small>assist ${e.assist}</small>` : ''}`
+    : e.text;
+  const events = tl.slice().sort((a, b) => a.min - b.min);
+  const totPoss = st.home.poss + st.away.poss || 1;
+  const pct = t => Math.round(st[t].poss / totPoss * 100);
+  const rows = [
+    ['Penguasaan bola', pct('home'), pct('away'), '%'],
+    ['Tembakan', st.home.shots, st.away.shots],
+    ['Tembakan ke gawang', st.home.onTarget, st.away.onTarget],
+    ['Penyelamatan kiper', st.home.saves, st.away.saves],
+    ['Blok', st.home.blocks, st.away.blocks],
+    ['Operan sukses', st.home.passOk, st.away.passOk, '', `${st.home.passOk}/${st.home.passes}`, `${st.away.passOk}/${st.away.passes}`],
+    ['Intersepsi', st.home.intercepts, st.away.intercepts],
+    ['Rebut bola', st.home.tackles, st.away.tackles],
+    ['Pelanggaran', st.home.fouls, st.away.fouls],
+    ['Kartu kuning', st.home.yellow, st.away.yellow],
+    ['Kartu merah', st.home.red, st.away.red],
+  ];
+  const bar = ([label, h, a, unit = '', hs, as]) => {
+    const tot = h + a, hp = tot ? h / tot * 100 : 50;
+    return `<div class="rp-stat">
+      <span class="v">${hs || h + unit}</span><span class="lbl">${label}</span><span class="v">${as || a + unit}</span>
+      <div class="rp-bar">${tot ? `<i style="width:${hp}%;background:${TEAMS.home.color}"></i><i style="width:${100 - hp}%;background:${TEAMS.away.color}"></i>` : ''}</div>
+    </div>`;
+  };
+  // pemain terbaik
+  const winner = S.score.home > S.score.away ? 'home' : S.score.away > S.score.home ? 'away' : null;
+  const mom = Object.values(S.pstats)
+    .map(p => ({ ...p, pts: p.g * 4 + p.a * 3 + p.sv * 1.5 + p.tk + p.bl + p.sh * 0.3 + (p.team === winner ? 1 : 0) }))
+    .sort((a, b) => b.pts - a.pts)[0];
+  const momInfo = p => [p.g && `${p.g} gol`, p.a && `${p.a} assist`, p.sv && `${p.sv} penyelamatan`, p.tk && `${p.tk} rebut bola`, p.bl && `${p.bl} blok`].filter(Boolean).join(', ');
+  return `<div class="report">
+    <div class="rp-head">
+      <div class="rp-team"><span class="rp-dot" style="background:${TEAMS.home.color}"></span><b>${name('home')}</b><div class="rp-sc">${scorers('home')}</div></div>
+      <div class="rp-score">${S.score.home} - ${S.score.away}</div>
+      <div class="rp-team"><span class="rp-dot" style="background:${TEAMS.away.color}"></span><b>${name('away')}</b><div class="rp-sc">${scorers('away')}</div></div>
+    </div>
+    <p class="rp-res" style="color:${col}">${res}</p>
+    ${mom && mom.pts > 1 ? `<div class="rp-mom">⭐ Pemain Terbaik: <b>${mom.name}</b> <small>(${name(mom.team)}${momInfo(mom) ? ' · ' + momInfo(mom) : ''})</small></div>` : ''}
+    <h4>Jalannya Pertandingan</h4>
+    ${events.length ? `<ul class="rp-tl">${events.map(e => `<li class="${e.team}">
+        <span class="min">${e.min}'</span><span class="ic">${icon[e.type] || '•'}</span>
+        <span class="tdot" style="background:${TEAMS[e.team].color}"></span><span class="tx">${text(e)}</span></li>`).join('')}</ul>`
+      : '<p class="muted">Tidak ada kejadian penting.</p>'}
+    <h4>Statistik</h4>
+    <div class="rp-stats">${rows.map(bar).join('')}</div>
+  </div>`;
+}
+
 function resetGame() {
+  newStats();
   S.half = 1;
   S.clock = CONFIG.HALF_SECONDS;
   S.score = { home: 0, away: 0 };
@@ -1299,7 +1427,7 @@ function startMatch(opt) {
   if (typeof League !== 'undefined') League.hideHub();
   TEAMS.home = { name: opt.home.name, color: opt.home.color, squad: opt.home.squad || null };
   TEAMS.away = { name: opt.away.name, color: opt.away.color, squad: opt.away.squad || null };
-  S.events = [];
+  newStats();
   applyTeamColors();
   S.half = 1;
   S.clock = CONFIG.HALF_SECONDS;
@@ -1333,6 +1461,8 @@ function tick(now) {
   last = now;
   if (!S.paused && (S.phase === 'play' || S.phase === 'animating')) {
     S.clock = Math.max(0, S.clock - dt);
+    const hb = holder();
+    if (hb && S.stats) S.stats[hb.team].poss += dt;
     if (S.phase === 'play') {
       S.turnTime -= dt;
       if (S.clock <= 0) endHalf();
@@ -1454,7 +1584,7 @@ function showSetup() {
     saveSetup(cfg);
     TEAMS.home = { name: cfg.home.name, color: cfg.home.color, squad: null };
     TEAMS.away = { name: cfg.away.name, color: cfg.away.color, squad: null };
-    S.events = [];
+    newStats();
     S.vs = cfg.vs;
     S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
     S.match = null;
@@ -1699,6 +1829,7 @@ async function runBotPenalty() {
 }
 
 /* ---------- start ---------- */
+newStats();
 buildPitch();
 applyTeamColors();
 render();
