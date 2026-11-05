@@ -683,7 +683,7 @@ function buildPitch() {
   els.ball = div('at ball');
   els.ball.innerHTML = '<span>⚽</span>';
   ballLayer.appendChild(els.ball);
-  pitch.append(field, div('goal left'), div('goal right'), els.pieceLayer, els.targets, ballLayer);
+  pitch.append(field, div('goal-net left'), div('goal-net right'), els.pieceLayer, els.targets, ballLayer);
 }
 
 function renderPieces() {

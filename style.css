@@ -185,7 +185,7 @@ main { min-width: 0; }
 .line.box.left { left: 0; border-left-width: 0; }
 .line.box.right { right: 0; border-right-width: 0; }
 
-.goal {
+.goal-net {
   position: absolute; top: var(--cell);
   width: calc(var(--cell) * .85); height: calc(var(--cell) * 3);
   border: 3px solid #f8fafc;
@@ -194,8 +194,8 @@ main { min-width: 0; }
     repeating-linear-gradient(-45deg, rgba(255,255,255,.22) 0 1px, transparent 1px 8px),
     rgba(0,0,0,.25);
 }
-.goal.left { left: calc(var(--cell) * .15); border-right: 0; border-radius: 6px 0 0 6px; }
-.goal.right { left: calc(var(--cell) * 13); border-left: 0; border-radius: 0 6px 6px 0; }
+.goal-net.left { left: calc(var(--cell) * .15); border-right: 0; border-radius: 6px 0 0 6px; }
+.goal-net.right { left: calc(var(--cell) * 13); border-left: 0; border-radius: 0 6px 6px 0; }
 
 .layer { position: absolute; inset: 0; pointer-events: none; }
 .layer > * { pointer-events: auto; }
