@@ -18,6 +18,9 @@ const CONFIG = {
   // Menembak dari depan gawang (kotak penalti): peluang gol lebih tinggi
   GK_BOX_LINE: 0.60,   // menembus kiper yang tepat di jalur bola
   GK_BOX_DIVE: 0.80,   // lolos dari tepisan kiper
+  // Tembakan ke sisi gawang yang jauh dari kiper (beda >= 2 baris): kiper tidak terjangkau,
+  // gagal hanya karena kena tiang / melenceng; tetap turun jika menembak dari jauh
+  GK_OPEN_BASE: 0.95, GK_OPEN_FULL: 3, GK_OPEN_ZERO: 13,
   // Tendangan jauh bisa berhenti di tengah jalan
   REACH_SAFE: 4,       // sampai jarak ini bola pasti sampai tujuan
   REACH_DROP: 0.10,    // tiap 1 kotak lebih jauh, peluang sampai turun 10%
@@ -75,7 +78,9 @@ const S = {
   vs: 'pvp',          // pvp = player vs player, pvc = player vs komputer
   bots: new Set(),    // tim yang dijalankan komputer (kosong jika pvp)
   speed: 1,           // kecepatan permainan (mode tonton komputer)
-  match: null,        // konteks pertandingan liga/piala: { onEnd(home, away), knockout }
+  match: null,        // konteks pertandingan liga/piala: { onEnd(home, away, events), knockout }
+  events: [],         // kejadian pertandingan (gol + assist) untuk statistik liga
+  lastPass: null,     // operan terakhir { from, to } untuk menentukan assist
   turnId: 0,          // bertambah tiap giliran baru (dipakai bot)
   paused: false,
   half: 1,
@@ -116,6 +121,8 @@ const getSel = () => S.players.find(p => p.id === S.selected);
 // Area kiper: kolom paling depan di depan mulut gawang. Hanya kiper yang boleh berada di sini.
 const isGkArea = (x, y) => (x === 1 || x === CONFIG.COLS) && CONFIG.GOAL_ROWS.includes(y);
 const teamName = t => TEAMS[t].name;
+// nama pemain (jika tim punya daftar nama), selain itu nomor punggung
+const pl = p => (p && p.name) ? p.name : `#${p ? p.num : '?'}`;
 const isBotTurn = () => S.bots.has(S.turn);
 const humanTeam = () => ['home', 'away'].find(t => !S.bots.has(t)) || null;
 
@@ -131,13 +138,15 @@ function placeFormation(kickTeam = null) {
       if (S.sentOff.has(t + f.num)) continue; // pemain kartu merah tidak kembali
       let x = (f.kx && t === kickTeam) ? f.kx : f.x;
       if (!left) x = mirrorX(x);
-      S.players.push({ id: t + f.num, team: t, num: f.num, role: f.role, x, y: f.y });
+      const name = TEAMS[t].squad ? TEAMS[t].squad[f.num] : null;
+      S.players.push({ id: t + f.num, team: t, num: f.num, role: f.role, x, y: f.y, name });
     }
   }
 }
 
 function setupKickoff(team) {
   placeFormation(team);
+  S.lastPass = null;
   S.ball = { x: sideOf(team) === 'left' ? 6 : 7, y: 2 };
   S.setPiece = null;
   S.penalty = null;
@@ -222,7 +231,10 @@ const falloff = (d, base, full, zero) => base * Math.max(0, Math.min(1, (zero - 
 
 // Peluang lambung otomatis melewati lawan p, bergantung jarak tendangan d (kotak)
 // close = ditendang dari depan gawang (kotak penalti lawan)
-function overChance(p, d, dive = false, close = false) {
+// gap = selisih baris antara kiper & titik tujuan di gawang (untuk tepisan)
+function overChance(p, d, dive = false, close = false, gap = 1) {
+  if (dive && gap === 0) return close ? CONFIG.GK_BOX_LINE : falloff(d, CONFIG.GK_BASE, CONFIG.GK_FULL, CONFIG.GK_ZERO);
+  if (dive && gap >= 2) return close ? CONFIG.GK_OPEN_BASE : falloff(d, CONFIG.GK_OPEN_BASE, CONFIG.GK_OPEN_FULL, CONFIG.GK_OPEN_ZERO);
   if (dive) return close ? CONFIG.GK_BOX_DIVE : falloff(d, CONFIG.GK_DIVE_BASE, CONFIG.GK_FULL, CONFIG.GK_DIVE_ZERO);
   if (p.role === 'GK') return close ? CONFIG.GK_BOX_LINE : falloff(d, CONFIG.GK_BASE, CONFIG.GK_FULL, CONFIG.GK_ZERO);
   return falloff(d, CONFIG.OVER_BASE, CONFIG.OVER_FULL, CONFIG.OVER_ZERO);
@@ -282,19 +294,23 @@ function planKick(k, aim, kickLen = S.kickLen) {
   const d = Math.hypot(end.x - from.x, end.y - from.y);
   const blockers = [];
   let receiver = null;
+  // tembakan ke gawang: peluang melewati kiper ditentukan selisih baris kiper & titik tujuan
+  const gk = goal ? S.players.find(p => p.role === 'GK' && sideOf(p.team) === goal) : null;
+  let gkAt = -1;
   path.forEach((c, i) => {
     const p = playerAt(c.x, c.y);
     if (!p) return;
     if (i === path.length - 1) { receiver = p; return; }
     if (p.team === k.team) return;
+    if (p === gk) { gkAt = i; return; }
     const close = p.role === 'GK' && inBox(from.x, from.y, sideOf(p.team));
     blockers.push({ at: i, p, chance: overChance(p, d, false, close) });
   });
-  // tembakan ke gawang: kiper selalu berusaha menepis walau tidak tepat di jalur bola
-  if (goal) {
-    const gk = S.players.find(p => p.role === 'GK' && sideOf(p.team) === goal);
-    if (gk && !blockers.some(b => b.p === gk))
-      blockers.push({ at: path.length - 1, p: gk, chance: overChance(gk, d, true, inBox(from.x, from.y, goal)), dive: true });
+  if (gk) {
+    const gap = Math.abs(gk.y - end.y);
+    blockers.push({ at: gkAt >= 0 ? gkAt : path.length - 1, p: gk, dive: gap > 0, gap,
+      chance: overChance(gk, d, true, inBox(from.x, from.y, goal), gap) });
+    blockers.sort((a, b) => a.at - b.at);
   }
   const reach = reachChance(d);
   const success = blockers.reduce((a, b) => a * b.chance, reach);
@@ -352,14 +368,14 @@ function refresh() {
   if (sel && sel === ownHolder) {
     if (S.action === 'dribble' && !S.used.has(sel.id) && !S.setPiece) {
       S.targets = moveTargets(sel).filter(afford);
-      S.hint = `<b>#${sel.num}</b> <b>menggiring</b> bola: klik kotak tujuan (${CONFIG.COST_DRIBBLE} energi/kotak, diagonal ${CONFIG.COST_DRIBBLE_DIAG}).`;
+      S.hint = `<b>${pl(sel)}</b> <b>menggiring</b> bola: klik kotak tujuan (${CONFIG.COST_DRIBBLE} energi/kotak, diagonal ${CONFIG.COST_DRIBBLE_DIAG}).`;
       return;
     }
     S.action = 'kick';
     S.mode = 'kick';
     S.hint = S.setPiece === 'free'
-      ? `<b>TENDANGAN BEBAS</b> #${sel.num}: bidik ke arah mana saja lalu klik untuk menendang (tanpa energi).${S.walls.length ? ' Pagar betis lawan ditandai.' : ''}`
-      : `<b>#${sel.num}</b> membawa bola: bidik <b>ke mana saja</b> lalu klik untuk menendang` +
+      ? `<b>TENDANGAN BEBAS</b> ${pl(sel)}: bidik ke arah mana saja lalu klik untuk menendang (tanpa energi).${S.walls.length ? ' Pagar betis lawan ditandai.' : ''}`
+      : `<b>${pl(sel)}</b> membawa bola: bidik <b>ke mana saja</b> lalu klik untuk menendang` +
         (S.used.has(sel.id) ? '.' : ', atau ganti aksi di kanan.');
     return;
   }
@@ -367,16 +383,16 @@ function refresh() {
     S.targets = moveTargets(sel).filter(afford);
     const steal = S.targets.some(t => t.steal);
     S.hint = (sel.role === 'GK'
-      ? `Kiper <b>#${sel.num}</b>: klik kotak tujuan (naik/turun di area kiper)`
-      : `Klik kotak tujuan untuk <b>#${sel.num}</b>, angka = biaya energi`) +
+      ? `Kiper <b>${pl(sel)}</b>: klik kotak tujuan (naik/turun di area kiper)`
+      : `Klik kotak tujuan untuk <b>${pl(sel)}</b>, angka = biaya energi`) +
       (steal ? `. Lingkaran merah = <b>rebut bola</b>.` : `, atau pilih pemain lain.`);
-    if (!S.targets.length) S.hint = `<b>#${sel.num}</b> tidak bisa bergerak (energi kurang / terhalang). Pilih pemain lain.`;
+    if (!S.targets.length) S.hint = `<b>${pl(sel)}</b> tidak bisa bergerak (energi kurang / terhalang). Pilih pemain lain.`;
     return;
   }
   S.selected = null;
   S.aim = null;
   S.hint = `Pilih pemain untuk digerakkan (tiap pemain maks 1x per giliran).`;
-  if (ownHolder) S.hint += ` Klik <b>#${ownHolder.num}</b> untuk menendang/menggiring.`;
+  if (ownHolder) S.hint += ` Klik <b>${pl(ownHolder)}</b> untuk menendang/menggiring.`;
   else if (h) S.hint += ` Dekati pembawa bola lawan untuk <b>merebut</b> bola.`;
   else S.hint += ` Gerak ke kotak bola untuk <b>menguasai</b> bola.`;
 }
@@ -477,9 +493,17 @@ async function performMove(p, t) {
     S.targets = [];
     render();
     const got = S.ball.x === p.x && S.ball.y === p.y;
-    if (t.steal) addLog(`${teamName(p.team)} #${p.num} merebut bola dari #${t.steal.num}!`, p.team);
-    else if (dribble) addLog(`${teamName(p.team)} #${p.num} menggiring bola`, p.team);
-    else addLog(`${teamName(p.team)} #${p.num} bergerak${got ? ' & menguasai bola' : ''}`, p.team);
+    // assist: operan ke ruang kosong lalu diambil teman
+    if (t.steal) S.lastPass = null;
+    else if (got && !dribble) {
+      const lp = S.lastPass;
+      const from = lp && S.players.find(q => q.id === lp.from);
+      if (lp && !lp.to && from && from.team === p.team && from !== p) lp.to = p.id;
+      else S.lastPass = null;
+    }
+    if (t.steal) addLog(`${teamName(p.team)} ${pl(p)} merebut bola dari ${pl(t.steal)}!`, p.team);
+    else if (dribble) addLog(`${teamName(p.team)} ${pl(p)} menggiring bola`, p.team);
+    else addLog(`${teamName(p.team)} ${pl(p)} bergerak${got ? ' & menguasai bola' : ''}`, p.team);
     await sleep(320);
     els.ball.classList.remove('dribble');
     if (got) {
@@ -514,9 +538,9 @@ async function handleFoul(fouler, victim, t) {
   render();
   const defSide = sideOf(fouler.team);
   const pen = inBox(S.ball.x, S.ball.y, defSide);
-  addLog(`Pelanggaran ${teamName(fouler.team)} #${fouler.num} terhadap #${victim.num}${pen ? ' di kotak penalti!' : ''}`, fouler.team, 'info');
+  addLog(`Pelanggaran ${teamName(fouler.team)} ${pl(fouler)} terhadap ${pl(victim)}${pen ? ' di kotak penalti!' : ''}`, fouler.team, 'info');
   await giveCard(fouler);
-  await flash(pen ? 'PENALTI!' : 'TENDANGAN BEBAS', `Pelanggaran #${fouler.num} · ${teamName(victim.team)}`, TEAMS[victim.team].color);
+  await flash(pen ? 'PENALTI!' : 'TENDANGAN BEBAS', `Pelanggaran ${pl(fouler)} · ${teamName(victim.team)}`, TEAMS[victim.team].color);
   if (pen) setupPenalty(victim, fouler.team);
   else setupFreeKick(victim, fouler.team);
 }
@@ -530,7 +554,7 @@ async function giveCard(p) {
     S.cards[p.id] = (S.cards[p.id] || 0) + 1;
     if (S.cards[p.id] >= 2) card = 'second';
   }
-  const who = `${teamName(p.team)} #${p.num}`;
+  const who = `${teamName(p.team)} ${pl(p)}`;
   const info = {
     warn:   { title: 'PERINGATAN',         cls: 'warn',   log: `Wasit memberi peringatan kepada ${who}` },
     yellow: { title: 'KARTU KUNING',       cls: 'yellow', log: `Kartu kuning untuk ${who}` },
@@ -592,7 +616,7 @@ async function takePenalty() {
   }
   if (gk && Math.random() < CONFIG.PEN_SAVE) {
     popup(gk, 'DITAHAN!', 'bad');
-    addLog(`Penalti #${taker.num} ditahan kiper ${teamName(def)} #${gk.num}!`, def, 'info');
+    addLog(`Penalti ${pl(taker)} ditahan kiper ${teamName(def)} ${pl(gk)}!`, def, 'info');
     renderBall();
     await sleep(700);
     endTurn(); // giliran pindah ke tim kiper yang memegang bola
@@ -602,7 +626,7 @@ async function takePenalty() {
   S.ball = { x: goalX, y: 2 };
   renderBall();
   await sleep(200);
-  await handleGoal(dx < 0 ? 'left' : 'right', taker);
+  await handleGoal(dx < 0 ? 'left' : 'right', taker, true);
 }
 
 function setupFreeKick(victim, defTeam) {
@@ -634,6 +658,7 @@ function setupFreeKick(victim, defTeam) {
     }
   }
 
+  S.lastPass = null;
   newTurn(victim.team);       // energi penuh, berlaku setelah tendangan bebas
   S.selected = victim.id;
   S.used.add(victim.id);      // penendang langsung menendang (tanpa giring)
@@ -642,53 +667,37 @@ function setupFreeKick(victim, defTeam) {
   S.phase = 'play';
   refresh();
   render();
-  addLog(`Tendangan bebas ${teamName(victim.team)} #${victim.num}` +
+  addLog(`Tendangan bebas ${teamName(victim.team)} ${pl(victim)}` +
     (walls.length ? `, pagar betis ${teamName(defTeam)} ${walls.map(w => '#' + w.num).join(' & ')}` : ''), victim.team, 'info');
 }
 
-// Titik pagar betis: kotak yang dilewati garis tembak dari bola ke mulut gawang
-// (tengah, tiang atas, tiang bawah). Dicoba semua pasangan kotak berdampingan dan dipilih
-// yang menutup garis tembak paling banyak; lalu utamakan jarak 2 kotak dari bola & berjajar.
+// Titik pagar betis: 2 kotak di depan penendang (ke arah gawang), dua pemain bersebelahan
+// (atas-bawah) menutup garis tembak ke tengah gawang. Jika kolom itu area kiper / luar lapangan,
+// pagar maju 1 kotak lebih dekat ke bola.
 function wallSpots(ball, defTeam) {
+  const dx = sideOf(defTeam) === 'left' ? -1 : 1;           // arah ke gawang yang dibela
   const gx = sideOf(defTeam) === 'left' ? 0.5 : CONFIG.COLS + 1.5;
-  const cheb1 = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
   const ok = c => {
     if (!inField(c.x, c.y) || isGkArea(c.x, c.y) || (c.x === ball.x && c.y === ball.y)) return false;
     const p = playerAt(c.x, c.y);
     return !p || isDefField(p, defTeam);
   };
-  // kotak kandidat & garis tembak (0 = tengah, 1 = atas, 2 = bawah) yang ditutupnya
-  const cand = new Map();
-  [2.5, 1.5, 3.5].forEach((gy, li) => {
-    for (const c of lineCells(ball, gx, gy)) {
-      const d = cheb1(c, ball);
-      if (d > 3 || !ok(c)) continue;
-      const k = c.x + ',' + c.y;
-      if (!cand.has(k)) cand.set(k, { x: c.x, y: c.y, d, lines: new Set() });
-      cand.get(k).lines.add(li);
-    }
-  });
-  const cells = [...cand.values()];
-  const value = group => {
-    const lines = new Set(group.flatMap(c => [...c.lines]));
-    const near = group.filter(c => c.d === 2).length * 2 + group.filter(c => c.d === 3).length;
-    const row = group.length === 2 && group[0].x === group[1].x ? 1 : 0; // berjajar (sejajar garis gawang)
-    return lines.size * 100 + (lines.has(0) ? 50 : 0) + near * 5 + row;
-  };
-  let best = cells.length ? [cells.slice().sort((a, b) => value([b]) - value([a]))[0]] : [];
-  if (CONFIG.WALL_SIZE >= 2) {
-    // pasangan: kotak kandidat + tetangganya (boleh kotak di luar garis, asal sah)
-    for (const a of cells) {
-      for (const [dx, dy] of DIRS8) {
-        const b = { x: a.x + dx, y: a.y + dy };
-        if (!ok(b)) continue;
-        const bc = cand.get(b.x + ',' + b.y) || { ...b, d: cheb1(b, ball), lines: new Set() };
-        const pair = [a, bc];
-        if (best.length < 2 || value(pair) > value(best)) best = pair;
-      }
+  for (const dist of [2, 1]) {
+    const x = ball.x + dx * dist;
+    // baris tempat garis tembak ke tengah gawang memotong kolom x
+    const t = (x + 0.5 - (ball.x + 0.5)) / (gx - (ball.x + 0.5));
+    const yc = ball.y + 0.5 + (2.5 - (ball.y + 0.5)) * t;
+    const y1 = clamp(Math.floor(yc), 0, CONFIG.ROWS - 1);
+    // pasangan bersebelahan: baris garis tembak + tetangga ke arah tengah gawang (atau sebaliknya)
+    const toward = yc - y1 >= 0.5 ? 1 : -1;
+    const pref = y1 + (y1 < 2 ? 1 : y1 > 2 ? -1 : toward);
+    const pairs = [[y1, pref], [y1, 2 * y1 - pref], [pref, pref + (pref - y1)]];
+    for (const [a, b] of pairs) {
+      const A = { x, y: a }, B = { x, y: b };
+      if (ok(A) && ok(B)) return [A, B];
     }
   }
-  return best.map(({ x, y }) => ({ x, y }));
+  return [];
 }
 
 const isDefField = (p, team) => p && p.team === team && p.role !== 'GK';
@@ -735,7 +744,7 @@ async function doKick(plan) {
       const gk = e.p.role === 'GK';
       if (e.through) {
         popup(c, gk ? 'TEMBUS!' : 'LOLOS!', 'ok');
-        addLog(gk ? `Tembakan #${k.num} menembus kiper #${e.p.num}!` : `Bola melambung melewati ${teamName(e.p.team)} #${e.p.num}`, k.team);
+        addLog(gk ? `Tembakan ${pl(k)} menembus kiper ${pl(e.p)}!` : `Bola melambung melewati ${teamName(e.p.team)} ${pl(e.p)}`, k.team);
       } else {
         popup(c, e.dive ? 'DITEPIS!' : gk ? 'DITANGKAP' : 'DIPOTONG', 'bad');
       }
@@ -749,15 +758,16 @@ async function doKick(plan) {
   }
   if (sim.short) {
     popup(S.ball, 'KURANG JAUH', 'bad');
-    addLog(`Tendangan #${k.num} terlalu jauh, bola berhenti di tengah jalan`, k.team);
+    addLog(`Tendangan ${pl(k)} terlalu jauh, bola berhenti di tengah jalan`, k.team);
   }
   const r = sim.receiver;
   if (r) S.ball = { x: r.x, y: r.y }; // bola dikuasai penerima (mis. kiper yang menepis)
   const ownPass = r && r.team === k.team && r !== k;
-  if (!r || r === k) { if (!sim.short) addLog(`${teamName(k.team)} #${k.num} menendang bola`, k.team); }
-  else if (ownPass) addLog(`${teamName(k.team)} #${k.num} mengoper ke #${r.num}`, k.team);
-  else if (r.role === 'GK') addLog(`Kiper ${teamName(r.team)} #${r.num} menangkap tendangan #${k.num}`, r.team);
-  else addLog(`Tendangan #${k.num} dipotong ${teamName(r.team)} #${r.num}`, r.team);
+  S.lastPass = ownPass ? { from: k.id, to: r.id } : !r ? { from: k.id, to: null } : null;
+  if (!r || r === k) { if (!sim.short) addLog(`${teamName(k.team)} ${pl(k)} menendang bola`, k.team); }
+  else if (ownPass) addLog(`${teamName(k.team)} ${pl(k)} mengoper ke ${pl(r)}`, k.team);
+  else if (r.role === 'GK') addLog(`Kiper ${teamName(r.team)} ${pl(r)} menangkap tendangan ${pl(k)}`, r.team);
+  else addLog(`Tendangan ${pl(k)} dipotong ${teamName(r.team)} ${pl(r)}`, r.team);
   renderBall();
   await sleep(150);
   if (r && !ownPass) {
@@ -772,17 +782,24 @@ async function doKick(plan) {
   continueTurn();
 }
 
-async function handleGoal(side, kicker) {
+async function handleGoal(side, kicker, penalty = false) {
   const conceding = side === 'left' ? leftTeam() : other(leftTeam());
   const scorer = other(conceding);
   const own = kicker.team === conceding;
+  // assist: pemain yang terakhir mengoper ke pencetak gol (bukan penalti / gol bunuh diri)
+  const lp = S.lastPass;
+  const assist = !own && !penalty && lp && lp.to === kicker.id && lp.from !== kicker.id
+    ? S.players.find(q => q.id === lp.from) : null;
+  S.events.push({ type: 'goal', team: scorer, scorer: own ? null : kicker.num, assist: assist ? assist.num : null, own });
+  S.lastPass = null;
   S.score[scorer]++;
   S.phase = 'goal';
   renderHud();
-  addLog(`GOL! ${teamName(scorer)}${own ? ` (gol bunuh diri #${kicker.num})` : ` (#${kicker.num})`}`, scorer, 'goal');
+  addLog(`GOL! ${teamName(scorer)}${own ? ` (gol bunuh diri ${pl(kicker)})` : ` (${pl(kicker)}${penalty ? ', penalti' : ''}${assist ? `, assist ${pl(assist)}` : ''})`}`, scorer, 'goal');
   showModal(`
     <div class="goal-text">GOOOL!</div>
-    <p class="goal-sub" style="color:${TEAMS[scorer].color}">${teamName(scorer)}${own ? ' (gol bunuh diri)' : ` · #${kicker.num}`}</p>
+    <p class="goal-sub" style="color:${TEAMS[scorer].color}">${teamName(scorer)}${own ? ` · gol bunuh diri ${pl(kicker)}` : ` · ${pl(kicker)}${penalty ? ' (penalti)' : ''}`}</p>
+    ${assist ? `<p class="goal-sub small">Assist: ${pl(assist)}</p>` : ''}
     <p class="goal-sub">${S.score.home} : ${S.score.away}</p>`, true);
   await sleep(2300);
   hideModal();
@@ -832,7 +849,7 @@ function endHalf() {
       <div class="btns"><button class="btn primary" id="btnAgain">${m ? 'Lanjut' : 'Main Lagi'}</button></div>`);
     $('btnAgain').onclick = () => {
       hideModal();
-      if (m) { S.match = null; S.speed = 1; m.onEnd(home, away); }
+      if (m) { S.match = null; S.speed = 1; m.onEnd(home, away, S.events.slice()); }
       else resetGame();
     };
   }
@@ -947,6 +964,12 @@ function renderPieces() {
       els.pieces[p.id] = el;
     }
     place(el, p.x, p.y);
+    let nm = el.querySelector('.pname');
+    if (p.name) {
+      if (!nm) { nm = document.createElement('span'); nm.className = 'pname'; el.appendChild(nm); }
+      if (nm.textContent !== p.name) nm.textContent = p.name;
+      nm.classList.toggle('top', p.y === CONFIG.ROWS - 1); // baris paling bawah: nama di atas lingkaran
+    } else if (nm) nm.remove();
     const playing = S.phase === 'play' || S.phase === 'animating';
     el.className = 'at player ' + p.team +
       (p.role === 'GK' ? ' gk' : '') +
@@ -958,7 +981,7 @@ function renderPieces() {
       (S.walls.includes(p.id) ? ' wall' : '') +
       (S.cards[p.id] ? ' booked' : '') +
       (S.phase === 'penalty' && S.penalty && S.penalty.taker === p.id ? ' selected' : '');
-    el.title = `${teamName(p.team)} #${p.num} (${p.role})${S.cards[p.id] ? ' · kartu kuning' : ''}`;
+    el.title = `${teamName(p.team)} #${p.num}${p.name ? ' ' + p.name : ''} (${p.role})${S.cards[p.id] ? ' · kartu kuning' : ''}`;
   }
 }
 
@@ -979,8 +1002,8 @@ function renderTargets() {
     b.onclick = () => onTargetClick(t);
     b.className = 'at target ' + (t.steal ? 'steal' : 'move');
     b.innerHTML = `<span class="cost">${t.cost}</span>`;
-    b.setAttribute('aria-label', t.steal ? `Rebut bola dari #${t.steal.num}` : `Kotak ${t.x},${t.y + 1}`);
-    if (t.steal) b.title = `Rebut bola dari #${t.steal.num}`;
+    b.setAttribute('aria-label', t.steal ? `Rebut bola dari ${pl(t.steal)}` : `Kotak ${t.x},${t.y + 1}`);
+    if (t.steal) b.title = `Rebut bola dari ${pl(t.steal)}`;
     layer.appendChild(b);
   }
 }
@@ -1069,8 +1092,8 @@ function drawAim() {
   const r = plan.receiver;
   const pct = v => Math.round(v * 100) + '%';
   const what = plan.goal ? 'Tembakan'
-    : r && r.team === h.team ? `Oper ke #${r.num}`
-    : r ? `Ke lawan #${r.num}!`
+    : r && r.team === h.team ? `Oper ke ${pl(r)}`
+    : r ? `Ke lawan ${pl(r)}!`
     : 'Tendang ke ruang kosong';
   const parts = [`<b>${what}</b> · ⚡${plan.cost} · jarak ${plan.d.toFixed(1)}`];
   const poor = plan.cost > S.energy;
@@ -1155,7 +1178,7 @@ function renderHud() {
     : S.phase === 'play' ? S.hint
     : pen ? (() => {
         const tk = S.players.find(p => p.id === S.penalty.taker);
-        return `<b>PENALTI</b>: #${tk.num} menendang lurus ke tengah gawang. Peluang kiper menahan <b>${Math.round(CONFIG.PEN_SAVE * 100)}%</b>.`;
+        return `<b>PENALTI</b>: ${pl(tk)} menendang lurus ke tengah gawang. Peluang kiper menahan <b>${Math.round(CONFIG.PEN_SAVE * 100)}%</b>.`;
       })()
     : S.phase === 'animating' ? '...'
     : S.phase === 'toss' ? 'Lempar koin untuk menentukan kick off.'
@@ -1274,8 +1297,9 @@ function showMainMenu() {
 // Mulai pertandingan dari mode liga. opt = { home:{name,color}, away:{name,color}, bots:[...], onEnd, knockout, label }
 function startMatch(opt) {
   if (typeof League !== 'undefined') League.hideHub();
-  TEAMS.home = { name: opt.home.name, color: opt.home.color };
-  TEAMS.away = { name: opt.away.name, color: opt.away.color };
+  TEAMS.home = { name: opt.home.name, color: opt.home.color, squad: opt.home.squad || null };
+  TEAMS.away = { name: opt.away.name, color: opt.away.color, squad: opt.away.squad || null };
+  S.events = [];
   applyTeamColors();
   S.half = 1;
   S.clock = CONFIG.HALF_SECONDS;
@@ -1428,8 +1452,9 @@ function showSetup() {
     if (n1.toLowerCase() === n2.toLowerCase()) { $('setupErr').textContent = 'Nama kedua tim tidak boleh sama.'; return; }
     cfg.home.name = n1; cfg.away.name = n2;
     saveSetup(cfg);
-    TEAMS.home = { ...cfg.home };
-    TEAMS.away = { ...cfg.away };
+    TEAMS.home = { name: cfg.home.name, color: cfg.home.color, squad: null };
+    TEAMS.away = { name: cfg.away.name, color: cfg.away.color, squad: null };
+    S.events = [];
     S.vs = cfg.vs;
     S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
     S.match = null;
