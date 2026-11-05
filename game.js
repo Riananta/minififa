@@ -37,8 +37,9 @@ const CONFIG = {
   CARD_YELLOW: 0.35,
   CARD_RED: 0.10,
   PEN_SAVE: 0.20,      // peluang kiper menahan penalti
-  TURN_SECONDS: 30,    // waktu per giliran
-  HALF_SECONDS: 300,   // 5 menit per babak
+  TURN_SECONDS: 15,    // waktu per giliran
+  HALF_SECONDS: 150,   // 2,5 menit per babak (total 5 menit)
+  WALL_SIZE: 2,        // jumlah pemain pagar betis saat tendangan bebas
 };
 
 // Nama & warna tim diatur pemain di layar awal
@@ -96,7 +97,7 @@ const S = {
   cards: {},          // id pemain -> jumlah kartu kuning
   sentOff: new Set(), // id pemain yang dikartu merah
   setPiece: null,     // null | 'free' (tendangan bebas sedang berlangsung)
-  wall: null,         // id pemain pagar saat tendangan bebas
+  walls: [],          // id pemain pagar betis saat tendangan bebas
   penalty: null,      // { taker, def } saat fase penalti
   targets: [],
   hint: '',
@@ -157,7 +158,7 @@ function newTurn(t) {
   S.pickOther = false;
   S.aim = null;
   S.setPiece = null;
-  S.wall = null;
+  S.walls = [];
 }
 
 // Target gerak: lurus 4 arah (kiper hanya naik/turun di area gawang).
@@ -357,7 +358,7 @@ function refresh() {
     S.action = 'kick';
     S.mode = 'kick';
     S.hint = S.setPiece === 'free'
-      ? `<b>TENDANGAN BEBAS</b> #${sel.num}: bidik ke arah mana saja lalu klik untuk menendang (tanpa energi).${S.wall ? ' Pagar lawan ditandai.' : ''}`
+      ? `<b>TENDANGAN BEBAS</b> #${sel.num}: bidik ke arah mana saja lalu klik untuk menendang (tanpa energi).${S.walls.length ? ' Pagar betis lawan ditandai.' : ''}`
       : `<b>#${sel.num}</b> membawa bola: bidik <b>ke mana saja</b> lalu klik untuk menendang` +
         (S.used.has(sel.id) ? '.' : ', atau ganti aksi di kanan.');
     return;
@@ -616,24 +617,20 @@ function setupFreeKick(victim, defTeam) {
     if (c) { q.x = c.x; q.y = c.y; }
   }
 
-  // 2) pagar 1 pemain jika pelanggaran di area lawan (setengah lapangan yang diserang)
-  let wall = null;
+  // 2) pagar betis jika pelanggaran di area lawan (setengah lapangan yang diserang)
+  const walls = [];
   const inAttackHalf = defSide === 'left' ? ball.x <= CONFIG.COLS / 2 : ball.x > CONFIG.COLS / 2;
   if (inAttackHalf) {
-    const dx = Math.sign(defGoalX - ball.x), dy = Math.sign(2 - ball.y);
-    const cands = [
-      { x: ball.x + 2 * dx, y: ball.y + 2 * dy },
-      { x: ball.x + 2 * dx, y: ball.y },
-      { x: ball.x + 2 * dx, y: ball.y + dy },
-    ];
-    const spot = cands.find(c => inField(c.x, c.y) && !isGkArea(c.x, c.y) && (!playerAt(c.x, c.y) || isDefField(playerAt(c.x, c.y), defTeam)));
-    if (spot) {
-      wall = playerAt(spot.x, spot.y);
-      if (!wall || !isDefField(wall, defTeam)) {
-        wall = S.players.filter(p => isDefField(p, defTeam))
+    for (const spot of wallSpots(ball, defTeam)) {
+      let w = playerAt(spot.x, spot.y);
+      if (!isDefField(w, defTeam)) {
+        // pemain bertahan terdekat (bukan kiper, belum jadi pagar) berdiri di titik pagar
+        w = S.players.filter(p => isDefField(p, defTeam) && !walls.includes(p))
           .sort((a, b) => cheb(a, spot) - cheb(b, spot))[0];
-        if (wall) { wall.x = spot.x; wall.y = spot.y; }
+        if (!w) break;
+        w.x = spot.x; w.y = spot.y;
       }
+      walls.push(w);
     }
   }
 
@@ -641,11 +638,57 @@ function setupFreeKick(victim, defTeam) {
   S.selected = victim.id;
   S.used.add(victim.id);      // penendang langsung menendang (tanpa giring)
   S.setPiece = 'free';
-  S.wall = wall ? wall.id : null;
+  S.walls = walls.map(w => w.id);
   S.phase = 'play';
   refresh();
   render();
-  addLog(`Tendangan bebas ${teamName(victim.team)} #${victim.num}${wall ? `, pagar ${teamName(defTeam)} #${wall.num}` : ''}`, victim.team, 'info');
+  addLog(`Tendangan bebas ${teamName(victim.team)} #${victim.num}` +
+    (walls.length ? `, pagar betis ${teamName(defTeam)} ${walls.map(w => '#' + w.num).join(' & ')}` : ''), victim.team, 'info');
+}
+
+// Titik pagar betis: kotak yang dilewati garis tembak dari bola ke mulut gawang
+// (tengah, tiang atas, tiang bawah). Dicoba semua pasangan kotak berdampingan dan dipilih
+// yang menutup garis tembak paling banyak; lalu utamakan jarak 2 kotak dari bola & berjajar.
+function wallSpots(ball, defTeam) {
+  const gx = sideOf(defTeam) === 'left' ? 0.5 : CONFIG.COLS + 1.5;
+  const cheb1 = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  const ok = c => {
+    if (!inField(c.x, c.y) || isGkArea(c.x, c.y) || (c.x === ball.x && c.y === ball.y)) return false;
+    const p = playerAt(c.x, c.y);
+    return !p || isDefField(p, defTeam);
+  };
+  // kotak kandidat & garis tembak (0 = tengah, 1 = atas, 2 = bawah) yang ditutupnya
+  const cand = new Map();
+  [2.5, 1.5, 3.5].forEach((gy, li) => {
+    for (const c of lineCells(ball, gx, gy)) {
+      const d = cheb1(c, ball);
+      if (d > 3 || !ok(c)) continue;
+      const k = c.x + ',' + c.y;
+      if (!cand.has(k)) cand.set(k, { x: c.x, y: c.y, d, lines: new Set() });
+      cand.get(k).lines.add(li);
+    }
+  });
+  const cells = [...cand.values()];
+  const value = group => {
+    const lines = new Set(group.flatMap(c => [...c.lines]));
+    const near = group.filter(c => c.d === 2).length * 2 + group.filter(c => c.d === 3).length;
+    const row = group.length === 2 && group[0].x === group[1].x ? 1 : 0; // berjajar (sejajar garis gawang)
+    return lines.size * 100 + (lines.has(0) ? 50 : 0) + near * 5 + row;
+  };
+  let best = cells.length ? [cells.slice().sort((a, b) => value([b]) - value([a]))[0]] : [];
+  if (CONFIG.WALL_SIZE >= 2) {
+    // pasangan: kotak kandidat + tetangganya (boleh kotak di luar garis, asal sah)
+    for (const a of cells) {
+      for (const [dx, dy] of DIRS8) {
+        const b = { x: a.x + dx, y: a.y + dy };
+        if (!ok(b)) continue;
+        const bc = cand.get(b.x + ',' + b.y) || { ...b, d: cheb1(b, ball), lines: new Set() };
+        const pair = [a, bc];
+        if (best.length < 2 || value(pair) > value(best)) best = pair;
+      }
+    }
+  }
+  return best.map(({ x, y }) => ({ x, y }));
 }
 
 const isDefField = (p, team) => p && p.team === team && p.role !== 'GK';
@@ -670,7 +713,7 @@ async function doKick(plan) {
   if (plan.cost > S.energy) return;
   S.energy -= plan.cost;
   S.setPiece = null;
-  S.wall = null;
+  S.walls = [];
   S.phase = 'animating';
   S.targets = [];
   S.selected = null;
@@ -912,7 +955,7 @@ function renderPieces() {
       (S.phase === 'play' && !S.setPiece && p.team === S.turn && (h === p || !S.used.has(p.id)) ? ' can-select' : '') +
       (S.phase === 'play' && p.team === S.turn && S.used.has(p.id) && h !== p ? ' used' : '') +
       (playing && p.team !== S.turn ? ' inactive' : '') +
-      (S.wall === p.id ? ' wall' : '') +
+      (S.walls.includes(p.id) ? ' wall' : '') +
       (S.cards[p.id] ? ' booked' : '') +
       (S.phase === 'penalty' && S.penalty && S.penalty.taker === p.id ? ' selected' : '');
     el.title = `${teamName(p.team)} #${p.num} (${p.role})${S.cards[p.id] ? ' · kartu kuning' : ''}`;
@@ -1096,7 +1139,7 @@ function renderHud() {
     : active ? `Giliran ${teamName(S.turn)}${bot ? ' 🤖' : ''}` : (S.phase === 'over' ? 'Selesai' : 'Menunggu');
   $('btnPenalty').classList.toggle('hidden', !pen || bot);
   const sec = Math.max(0, Math.ceil(S.turnTime));
-  const low = active && sec <= 10;
+  const low = active && sec <= 5;
   $('turnSec').textContent = active ? sec + 's' : '';
   $('turnSec').classList.toggle('low', low);
   $('timerFill').style.width = (active ? (Math.max(0, S.turnTime) / CONFIG.TURN_SECONDS) * 100 : 0) + '%';
