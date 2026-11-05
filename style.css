@@ -550,3 +550,24 @@ aside { display: grid; gap: 16px; }
 .so-row i { width: 16px; height: 16px; border-radius: 50%; display: inline-block; animation: pop .2s ease; }
 .so-row i.in { background: #22c55e; } .so-row i.out { background: #ef4444; }
 .so-row em { font-style: normal; font-weight: 900; font-size: 20px; }
+
+/* nama pemain di bawah (atau di atas) lingkaran */
+.player .pname {
+  position: absolute; left: 50%; bottom: -3%; transform: translateX(-50%);
+  max-width: 130%; overflow: hidden; text-overflow: ellipsis;
+  font-size: max(8px, calc(var(--cell) * .17)); font-weight: 800; line-height: 1.1; white-space: nowrap;
+  color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; pointer-events: none;
+}
+.player .pname.top { bottom: auto; top: -3%; }
+.player.wall .pname { bottom: auto; top: -3%; }
+.goal-sub.small { font-size: 16px; opacity: .85; }
+
+/* top skor & pencetak gol */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.stats-grid h4 { margin: 4px 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.fx-g { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 72px; color: var(--muted); font-size: 12px; margin-top: -4px; }
+.fx-g span:first-child { text-align: right; }
+.fx-g small { font-size: 11px; opacity: .8; }
+.scorers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; font-size: 14px; margin: 8px 0; }
+.scorers > div:first-child { text-align: right; }
+.scorers small { color: var(--muted); }

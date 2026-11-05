@@ -31,7 +31,31 @@ const League = (() => {
     { id: 'mun', name: 'Manchester Utd',  color: '#da291c', alt: '#1f2937', rating: 82 },
     { id: 'acm', name: 'AC Milan',        color: '#fb090b', alt: '#f1f5f9', rating: 82 },
   ];
+  // Pemain inti tiap klub, sesuai formasi game: 1 = kiper, 2 & 4 = bek, 7 & 11 = gelandang, 9 = penyerang.
+  // Data dari pengetahuan hingga pertengahan 2026; transfer setelah itu belum tercakup. Bebas diedit.
+  const SQUADS = {
+    rma: { 1: 'Courtois',   2: 'Alexander-Arnold', 4: 'Huijsen',      7: 'Valverde',    11: 'Bellingham', 9: 'Mbappé' },
+    mci: { 1: 'Donnarumma', 2: 'Rúben Dias',  4: 'Gvardiol',     7: 'Rodri',       11: 'Reijnders',  9: 'Haaland' },
+    liv: { 1: 'Alisson',    2: 'Frimpong',    4: 'Van Dijk',     7: 'Salah',       11: 'Wirtz',      9: 'Isak' },
+    ars: { 1: 'Raya',       2: 'Saliba',      4: 'Gabriel',      7: 'Saka',        11: 'Rice',       9: 'Gyökeres' },
+    bay: { 1: 'Neuer',      2: 'Upamecano',   4: 'Kim Min-jae',  7: 'Olise',       11: 'Kimmich',    9: 'Kane' },
+    bar: { 1: 'Joan García', 2: 'Koundé',     4: 'Cubarsí',      7: 'Lamine Yamal', 11: 'Pedri',     9: 'Raphinha' },
+    psg: { 1: 'Chevalier',  2: 'Hakimi',      4: 'Marquinhos',   7: 'Vitinha',     11: 'Kvaratskhelia', 9: 'Dembélé' },
+    int: { 1: 'Sommer',     2: 'Dimarco',     4: 'Bastoni',      7: 'Barella',     11: 'Çalhanoğlu', 9: 'Lautaro' },
+    atm: { 1: 'Oblak',      2: 'Llorente',    4: 'Giménez',      7: 'Baena',       11: 'Barrios',    9: 'Julián Álvarez' },
+    che: { 1: 'Sánchez',    2: 'Reece James', 4: 'Colwill',      7: 'Palmer',      11: 'Enzo',       9: 'João Pedro' },
+    lev: { 1: 'Flekken',    2: 'Grimaldo',    4: 'Tapsoba',      7: 'Aleix García', 11: 'Andrich',   9: 'Schick' },
+    nap: { 1: 'Meret',      2: 'Di Lorenzo',  4: 'Buongiorno',   7: 'McTominay',   11: 'De Bruyne',  9: 'Højlund' },
+    juv: { 1: 'Di Gregorio', 2: 'Cambiaso',   4: 'Bremer',       7: 'Yıldız',      11: 'Locatelli',  9: 'Jonathan David' },
+    bvb: { 1: 'Kobel',      2: 'Ryerson',     4: 'Schlotterbeck', 7: 'Adeyemi',    11: 'J. Bellingham', 9: 'Guirassy' },
+    mun: { 1: 'Lammens',    2: 'Dalot',       4: 'De Ligt',      7: 'Bruno F.',    11: 'Cunha',      9: 'Šeško' },
+    acm: { 1: 'Maignan',    2: 'Tomori',      4: 'Gabbia',       7: 'Pulisic',     11: 'Modrić',     9: 'Leão' },
+  };
   const CUP_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
+  // peluang mencetak gol / memberi assist per posisi (untuk pertandingan yang diundi)
+  const GOAL_W = { 9: 42, 7: 20, 11: 20, 2: 6, 4: 6, 1: 0 };
+  const ASSIST_W = { 9: 18, 7: 30, 11: 30, 2: 11, 4: 9, 1: 2 };
+  const ASSIST_CHANCE = 0.7;
   const CUP_AFTER = [4, 10, 18, 26];   // babak piala dimainkan setelah pekan liga ke-n
   const PEN_SCORE = 0.76;              // peluang gol tiap penalti saat adu penalti
 
@@ -50,6 +74,8 @@ const League = (() => {
   function load() {
     try { save = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { save = null; }
     if (save && save.v !== 1) save = null;
+    // karier lama (sebelum ada nama pemain): lengkapi daftar pemain
+    if (save) for (const c of save.clubs) if (!c.squad) c.squad = { ...SQUADS[c.id] };
     return save;
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* abaikan */ } }
@@ -109,7 +135,7 @@ const League = (() => {
       <div class="btns"><button class="btn ghost" id="btnPickBack">← Kembali</button></div>`);
     document.querySelectorAll('[data-club]').forEach(b => {
       b.onclick = () => {
-        save = { v: 1, user: b.dataset.club, clubs: CLUBS.map(c => ({ ...c })), history: [] };
+        save = { v: 1, user: b.dataset.club, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] } })), history: [] };
         newSeason(START_YEAR);
         persist();
         hideModal();
@@ -149,8 +175,26 @@ const League = (() => {
     }
     return { ph, pa, kicks };
   }
-  function setResult(ev, m, hs, as, so) {
+  const pick = w => {
+    const tot = Object.values(w).reduce((a, b) => a + b, 0);
+    let r = Math.random() * tot;
+    for (const [k, v] of Object.entries(w)) { r -= v; if (r < 0) return +k; }
+    return 9;
+  };
+  // pencetak gol & assist acak (berbobot posisi) untuk pertandingan yang diundi
+  function genGoals(cid, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const s = pick(GOAL_W);
+      let a = null;
+      if (Math.random() < ASSIST_CHANCE) { const w = { ...ASSIST_W }; delete w[s]; a = pick(w); }
+      out.push({ c: cid, s, a });
+    }
+    return out;
+  }
+  function setResult(ev, m, hs, as, so, goals) {
     m.hs = hs; m.as = as; m.played = true;
+    m.goals = goals || [...genGoals(m.h, hs), ...genGoals(m.a, as)];
     if (ev.type === 'cup') {
       if (hs === as) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
       m.winner = hs > as || (hs === as && m.ph > m.pa) ? m.h : m.a;
@@ -186,7 +230,7 @@ const League = (() => {
     const H = club(m.h), A = club(m.a);
     let ac = A.color;
     if (colorDist(H.color, ac) < 120) ac = colorDist(H.color, A.alt) >= 120 ? A.alt : '#f97316';
-    return { home: { name: H.name, color: H.color }, away: { name: A.name, color: ac } };
+    return { home: { name: H.name, color: H.color, squad: H.squad }, away: { name: A.name, color: ac, squad: A.squad } };
   }
 
   async function playUserMatch(how) {
@@ -198,6 +242,7 @@ const League = (() => {
       const so = ko && hs === as ? shootout() : null;
       if (so) await showShootout(m, hs, as, so);
       setResult(ev, m, hs, as, so);
+      await showInstant(ev, m);
       finishEvent();
       return;
     }
@@ -208,10 +253,13 @@ const League = (() => {
       bots: how === 'watch' ? ['home', 'away'] : [userSide === 'home' ? 'away' : 'home'],
       knockout: ko,
       label: eventTitle(ev),
-      onEnd: async (hs, as) => {
+      onEnd: async (hs, as, events) => {
         const so = ko && hs === as ? shootout() : null;
         if (so) await showShootout(m, hs, as, so);
-        setResult(ev, m, hs, as, so);
+        // gol dari mesin game: home/away -> klub; gol bunuh diri tanpa pencetak
+        const goals = (events || []).filter(e => e.type === 'goal')
+          .map(e => ({ c: e.team === 'home' ? m.h : m.a, s: e.scorer, a: e.assist, og: e.own || undefined }));
+        setResult(ev, m, hs, as, so, goals);
         finishEvent();
       },
     });
@@ -236,7 +284,11 @@ const League = (() => {
     let userCup = 'Babak 16 Besar';
     for (const e of save.events) if (e.type === 'cup' && e.matches.some(m => m.h === save.user || m.a === save.user)) userCup = CUP_ROUNDS[e.round];
     if (final.winner === save.user) userCup = 'Juara';
-    const entry = { season: seasonName(save.year), league: table[0].id, cup: final.winner, userPos, userCup };
+    const st = playerStats();
+    const ts = st.goals[0], ta = st.assists[0];
+    const entry = { season: seasonName(save.year), league: table[0].id, cup: final.winner, userPos, userCup,
+      topScorer: ts ? { c: ts.cid, name: pname(ts.cid, ts.num), n: ts.n } : null,
+      topAssist: ta ? { c: ta.cid, name: pname(ta.cid, ta.num), n: ta.n } : null };
     if (!save.history.some(x => x.season === entry.season)) save.history.push(entry);
     persist();
     const L = club(entry.league), C = club(entry.cup);
@@ -244,6 +296,8 @@ const League = (() => {
       <h2>Musim ${entry.season} Selesai</h2>
       <div class="champ-row"><span>🏆 Juara Liga</span><b style="color:${L.color}">${h(L.name)}</b></div>
       <div class="champ-row"><span>🥇 Juara Piala</span><b style="color:${C.color}">${h(C.name)}</b></div>
+      ${entry.topScorer ? `<div class="champ-row"><span>👟 Top Skor</span><b>${h(entry.topScorer.name)} <small>(${h(club(entry.topScorer.c).name)}) · ${entry.topScorer.n} gol</small></b></div>` : ''}
+      ${entry.topAssist ? `<div class="champ-row"><span>🎯 Top Assist</span><b>${h(entry.topAssist.name)} <small>(${h(club(entry.topAssist.c).name)}) · ${entry.topAssist.n} assist</small></b></div>` : ''}
       <p>${h(club(save.user).name)}: peringkat <b>${userPos}</b> di liga, piala: <b>${userCup}</b>.</p>
       <div class="btns"><button class="btn primary" id="btnNextSeason">Mulai Musim ${seasonName(save.year + 1)}</button></div>`);
     el('btnNextSeason').onclick = () => {
@@ -256,6 +310,40 @@ const League = (() => {
       viewEvent = null;
       showHub();
     };
+  }
+
+  const pname = (cid, num) => (club(cid).squad && club(cid).squad[num]) || `#${num}`;
+  const goalLine = g => g.og ? `${h(club(g.c).name)}: gol bunuh diri`
+    : `${h(pname(g.c, g.s))}${g.a ? ` <small>(assist ${h(pname(g.c, g.a))})</small>` : ''}`;
+
+  async function showInstant(ev, m) {
+    const H = club(m.h), A = club(m.a);
+    const side = c => (m.goals || []).filter(g => g.c === c).map(g => `<div>⚽ ${goalLine(g)}</div>`).join('') || '<div class="muted">-</div>';
+    showModal(`
+      <h2>${eventTitle(ev)}</h2>
+      <div class="final">${m.hs} : ${m.as}</div>
+      <p><b style="color:${H.color}">${h(H.name)}</b> vs <b style="color:${A.color}">${h(A.name)}</b>${m.ph != null ? ` · pen ${m.ph}-${m.pa}` : ''}</p>
+      <div class="scorers"><div>${side(m.h)}</div><div>${side(m.a)}</div></div>
+      <div class="btns"><button class="btn primary" id="btnInstOk">Lanjut</button></div>`);
+    await new Promise(r => { el('btnInstOk').onclick = r; });
+    hideModal();
+  }
+
+  // top skor & assist liga musim ini
+  function playerStats() {
+    const goals = new Map(), assists = new Map();
+    const add = (map, cid, num) => { const k = cid + ':' + num; map.set(k, (map.get(k) || 0) + 1); };
+    for (const ev of save.events) {
+      if (ev.type !== 'league') continue;
+      for (const m of ev.matches) for (const g of m.goals || []) {
+        if (g.og || g.s == null) continue;
+        add(goals, g.c, g.s);
+        if (g.a != null) add(assists, g.c, g.a);
+      }
+    }
+    const top = map => [...map.entries()].map(([k, n]) => { const [cid, num] = k.split(':'); return { cid, num: +num, n }; })
+      .sort((a, b) => b.n - a.n || pname(a.cid, a.num).localeCompare(pname(b.cid, b.num))).slice(0, 10);
+    return { goals: top(goals), assists: top(assists) };
   }
 
   async function showShootout(m, hs, as, so) {
@@ -337,7 +425,7 @@ const League = (() => {
       </header>
       <section class="next-card">${nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['cup', 'Piala'], ['history', 'Juara']]
+        ${[['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Top Skor & Assist'], ['cup', 'Piala'], ['history', 'Juara']]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -392,12 +480,23 @@ const League = (() => {
           <span class="fx-s">${m.played ? `${m.hs} - ${m.as}` : 'vs'}</span>
           <span class="fx-a">${badge(m.a)} ${h(club(m.a).name)}</span>
           ${m.ph != null ? `<small class="fx-p">pen ${m.ph}-${m.pa}</small>` : ''}
+          ${m.goals && m.goals.length ? `<small class="fx-g"><span>${m.goals.filter(g => g.c === m.h).map(goalLine).join(', ')}</span><span>${m.goals.filter(g => g.c === m.a).map(goalLine).join(', ')}</span></small>` : ''}
         </div>`).join('') : '<p class="muted">Pasangan ditentukan setelah babak sebelumnya selesai.</p>';
       return `<div class="ev-nav">
           <button class="btn" id="evPrev" ${viewEvent === 0 ? 'disabled' : ''}>←</button>
           <b>${eventTitle(ev)}</b>
           <button class="btn" id="evNext" ${viewEvent === save.events.length - 1 ? 'disabled' : ''}>→</button>
         </div>${list}`;
+    }
+    if (tab === 'stats') {
+      const st = playerStats();
+      const list = (rows, unit) => rows.length ? `<table class="tbl"><tbody>${rows.map((r, i) => `<tr class="${r.cid === save.user ? 'me-row' : ''}">
+          <td>${i + 1}</td><td class="l"><b>${h(pname(r.cid, r.num))}</b></td><td class="l">${nameCell(r.cid)}</td><td><b>${r.n}</b> ${unit}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted">Belum ada data.</p>';
+      return `<div class="stats-grid">
+        <div><h4>👟 Top Skor Liga</h4>${list(st.goals, 'gol')}</div>
+        <div><h4>🎯 Top Assist Liga</h4>${list(st.assists, 'assist')}</div>
+      </div>`;
     }
     if (tab === 'cup') {
       const cols = CUP_ROUNDS.map((name, r) => {
@@ -415,9 +514,11 @@ const League = (() => {
     // riwayat juara
     if (!save.history.length) return '<p class="muted">Belum ada musim yang selesai. Juara liga & piala tiap musim akan tercatat di sini.</p>';
     return `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th class="l">Musim</th><th class="l">🏆 Juara Liga</th><th class="l">🥇 Juara Piala</th><th>Posisi ${h(club(save.user).name)}</th><th class="l">Piala</th></tr></thead>
+      <thead><tr><th class="l">Musim</th><th class="l">🏆 Juara Liga</th><th class="l">🥇 Juara Piala</th><th class="l">👟 Top Skor</th><th class="l">🎯 Top Assist</th><th>Posisi ${h(club(save.user).name)}</th><th class="l">Piala</th></tr></thead>
       <tbody>${save.history.slice().reverse().map(x => `<tr>
         <td class="l">${x.season}</td><td class="l">${nameCell(x.league)}</td><td class="l">${nameCell(x.cup)}</td>
+        <td class="l">${x.topScorer ? `${h(x.topScorer.name)} (${x.topScorer.n})` : '-'}</td>
+        <td class="l">${x.topAssist ? `${h(x.topAssist.name)} (${x.topAssist.n})` : '-'}</td>
         <td>${x.userPos}</td><td class="l">${x.userCup}</td></tr>`).join('')}</tbody>
     </table></div>`;
   }
