@@ -571,3 +571,30 @@ aside { display: grid; gap: 16px; }
 .scorers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; font-size: 14px; margin: 8px 0; }
 .scorers > div:first-child { text-align: right; }
 .scorers small { color: var(--muted); }
+
+/* ============ LAPORAN PERTANDINGAN ============ */
+.modal:has(.report) { width: min(640px, 100%); }
+.report { text-align: left; }
+.report h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.rp-head { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; text-align: center; }
+.rp-team { display: grid; justify-items: center; gap: 4px; }
+.rp-team b { font-size: 16px; }
+.rp-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; }
+.rp-sc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.rp-score { font-size: 44px; font-weight: 900; font-variant-numeric: tabular-nums; padding-top: 4px; }
+.rp-res { text-align: center; font-size: 18px; font-weight: 800; margin: 6px 0 !important; }
+.rp-mom { background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.4); border-radius: 10px; padding: 8px 12px; font-size: 14px; text-align: center; }
+.rp-mom small { color: var(--muted); }
+.rp-tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+.rp-tl li { display: grid; grid-template-columns: 34px 30px 10px 1fr; align-items: center; gap: 6px; font-size: 13px; padding: 4px 6px; border-radius: 8px; background: #0a1120; }
+.rp-tl .min { font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; }
+.rp-tl .ic { text-align: center; }
+.rp-tl .tdot { width: 8px; height: 8px; border-radius: 50%; }
+.rp-tl small { color: var(--muted); }
+.rp-stats { display: grid; gap: 8px; }
+.rp-stat { display: grid; grid-template-columns: 70px 1fr 70px; align-items: center; font-size: 13px; row-gap: 3px; }
+.rp-stat .v { font-weight: 800; font-variant-numeric: tabular-nums; }
+.rp-stat .v:first-child { text-align: left; } .rp-stat .v:last-of-type { text-align: right; }
+.rp-stat .lbl { text-align: center; color: var(--muted); }
+.rp-bar { grid-column: 1 / -1; display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: #0a1120; gap: 2px; }
+.rp-bar i { display: block; height: 100%; }
