@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Football</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- PAPAN SKOR -->
+    <header class="scoreboard">
+      <div class="sb-team home">
+        <span class="sb-badge" id="sbHomeBadge"></span>
+        <div class="sb-info">
+          <div class="sb-name" id="sbHomeName">Tim Biru</div>
+          <div class="sb-dir" id="sbHomeDir"></div>
+        </div>
+      </div>
+
+      <div class="sb-center">
+        <div class="sb-score">
+          <span id="scoreHome">0</span><span class="sep">:</span><span id="scoreAway">0</span>
+        </div>
+        <div class="sb-clock">
+          <span class="sb-half" id="halfLabel">Babak 1</span>
+          <span class="sb-time" id="clock">05:00</span>
+        </div>
+      </div>
+
+      <div class="sb-team away">
+        <div class="sb-info">
+          <div class="sb-name" id="sbAwayName">Tim Merah</div>
+          <div class="sb-dir" id="sbAwayDir"></div>
+        </div>
+        <span class="sb-badge" id="sbAwayBadge"></span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <main>
+        <!-- INFO GILIRAN -->
+        <section class="turnbar" id="turnbar">
+          <div class="turn-top">
+            <span class="turn-pill" id="turnPill">Giliran</span>
+            <span class="turn-sec" id="turnSec">30</span>
+          </div>
+          <div class="timer"><div class="timer-fill" id="timerFill"></div></div>
+          <div class="hint-row">
+            <p class="hint" id="hint"></p>
+            <button class="btn primary hidden" id="btnPenalty">⚽ Tendang Penalti</button>
+            <div class="seg hidden" id="holderActions">
+              <button data-act="kick">⚽ Tendang</button>
+              <button data-act="chip">🌈 Lambung</button>
+              <button data-act="dribble">🏃 Giring</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- LAPANGAN -->
+        <div class="pitch-wrap">
+          <div class="pitch" id="pitch"></div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" id="btnPause">⏸ Pause</button>
+          <button class="btn" id="btnSkip">⏭ Lewati Giliran</button>
+          <button class="btn ghost" id="btnRestart">↻ Ulang</button>
+        </div>
+      </main>
+
+      <aside>
+        <section class="panel">
+          <h3>Jalannya Pertandingan</h3>
+          <ol class="log" id="log"></ol>
+        </section>
+        <section class="panel rules">
+          <h3>Aturan Singkat</h3>
+          <ul>
+            <li>Giliran bergantian, <b>30 detik</b> per giliran. Waktu habis = giliran lewat.</li>
+            <li>Tiap giliran pilih satu: <b>gerakkan 1 pemain</b> (lurus maks <b>3 kotak</b>, diagonal maks <b>1 kotak</b>), atau pembawa bola <b>menendang / menggiring</b>.</li>
+            <li>Kiper hanya bisa <b>naik/turun</b> di area gawang.</li>
+            <li>Gerak ke kotak bola atau selesai menggiring: boleh <b>langsung menendang</b> di giliran yang sama.</li>
+            <li>Operan kena teman: teman itu boleh <b>langsung menendang lagi</b> (berantai) selama waktu giliran masih ada.</li>
+            <li>Gerak ke kotak lawan pembawa bola = <b>rebut bola</b>. Lawan tergeser 1 kotak.</li>
+            <li>Tendangan kena lawan: <b>30%</b> bola lolos. Kena kiper: <b>40%</b> tembus dari dalam kotak penalti, <b>15%</b> dari luar.</li>
+            <li><b>Lambung</b>: 2 kotak pertama melayang di atas pemain (kecuali kiper).</li>
+            <li>Merebut bola: <b>25%</b> pelanggaran. Di kotak penalti = <b>PENALTI</b> (kiper menahan 20%). Di luar = <b>tendangan bebas</b>; di area lawan ada <b>1 pemain pagar</b>.</li>
+            <li>Tendangan: <b>8 arah</b>, lurus tanpa batas jarak. Kena pemain: bola <b>dikuasai pemain itu</b>. Kena batas: bola berhenti.</li>
+            <li>2 × 5 menit. Saat turun minum, tim bertukar gawang.</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
