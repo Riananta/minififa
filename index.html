@@ -54,6 +54,11 @@
               <button data-act="dribble">🏃 Giring</button>
               <button data-act="other">👥 Pemain Lain</button>
             </div>
+            <label class="power hidden" id="powerBox" title="Panjang tendangan (scroll di lapangan juga bisa)">
+              📏 Panjang
+              <input type="range" id="power" min="0" max="13" step="1" value="0">
+              <span id="powerVal">Otomatis</span>
+            </label>
           </div>
         </section>
 
@@ -84,6 +89,7 @@
             <li>Operan kena teman: teman itu boleh <b>langsung menendang lagi</b> (berantai) selama waktu giliran masih ada.</li>
             <li>Gerak ke kotak lawan pembawa bola = <b>rebut bola</b>. Lawan tergeser 1 kotak.</li>
             <li><b>Tendangan bebas arah</b>: bidik ke titik mana saja (tidak hanya 8 arah), sistem menghitung kotak yang dilewati bola. Bola berhenti di kotak tujuan.</li>
+            <li><b>Panjang tendangan</b> bisa diatur (slider 📏 atau scroll di lapangan). <b>Otomatis</b> = sampai titik bidik. Makin panjang, makin kecil peluang sampai.</li>
             <li><b>Lambung otomatis</b> saat melewati lawan: dekat <b>50%</b> (kiper di jalur <b>40%</b>), makin jauh makin kecil, <b>0%</b> mulai jarak 9 (kiper 8).</li>
             <li>Tembakan ke gawang selalu bisa <b>ditepis kiper</b>: lolos <b>60%</b> dari dekat, turun sampai <b>0%</b> di jarak 9.</li>
             <li>Tendangan lebih dari <b>4 kotak</b> bisa <b>berhenti di tengah jalan</b> (peluang sampai turun 10% per kotak).</li>

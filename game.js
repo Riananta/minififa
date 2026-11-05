@@ -69,6 +69,7 @@ const S = {
   pickOther: false,   // pembawa bola memilih menggerakkan pemain lain
   passes: 0,          // jumlah operan sukses di giliran ini
   aim: null,          // titik bidik (koordinat kotak, desimal) saat mode tendang
+  kickLen: 0,         // panjang tendangan pilihan pemain (kotak); 0 = otomatis sampai titik bidik
   cards: {},          // id pemain -> jumlah kartu kuning
   sentOff: new Set(), // id pemain yang dikartu merah
   setPiece: null,     // null | 'free' (tendangan bebas sedang berlangsung)
@@ -214,11 +215,21 @@ function lineCells(from, tx, ty) {
 //  - tujuan = gawang      -> tembakan
 //  - garis keluar lapangan-> bola berhenti di kotak terakhir di lapangan
 // Tendangan jauh punya peluang berhenti di tengah jalan.
+// Titik tujuan tendangan: arah dari titik bidik, panjang dari pengaturan (jika diatur).
+function kickPoint(k, aim) {
+  if (!S.kickLen) return aim;
+  const ax = k.x + 0.5, ay = k.y + 0.5;
+  const len = Math.hypot(aim.x - ax, aim.y - ay);
+  if (len < 0.01) return aim;
+  return { x: ax + (aim.x - ax) / len * S.kickLen, y: ay + (aim.y - ay) / len * S.kickLen };
+}
+
 function planKick(k, aim) {
   const from = { x: k.x, y: k.y };
   const path = [];
   let goal = null;
-  for (const c of lineCells(from, aim.x, aim.y)) {
+  const pt = kickPoint(k, aim);
+  for (const c of lineCells(from, pt.x, pt.y)) {
     if (isGoalCell(c.x, c.y)) { path.push(c); goal = c.x === 0 ? 'left' : 'right'; break; }
     if (!inField(c.x, c.y)) break;
     path.push(c);
@@ -877,6 +888,14 @@ function buildAim(layer) {
 
   aim.onpointermove = e => { if (e.pointerType === 'mouse') { S.aim = toGrid(e); drawAim(); } };
   aim.onpointerleave = e => { if (e.pointerType === 'mouse') { S.aim = null; drawAim(); } };
+  // scroll di lapangan = atur panjang tendangan
+  aim.onwheel = e => {
+    e.preventDefault();
+    const h = holder();
+    let base = S.kickLen;
+    if (!base && h && S.aim) base = Math.round(Math.hypot(S.aim.x - h.x - 0.5, S.aim.y - h.y - 0.5));
+    setKickLen((base || 1) + (e.deltaY < 0 ? 1 : -1));
+  };
   aim.onpointerup = e => {
     if (S.phase !== 'play' || S.paused) return;
     const g = toGrid(e);
@@ -894,6 +913,17 @@ function buildAim(layer) {
   drawAim();
 }
 
+function setKickLen(v) {
+  S.kickLen = Math.max(0, Math.min(CONFIG.COLS + 1, Math.round(v)));
+  renderPower();
+  drawAim();
+}
+
+function renderPower() {
+  $('power').value = S.kickLen;
+  $('powerVal').textContent = S.kickLen ? S.kickLen + ' kotak' : 'Otomatis';
+}
+
 function drawAim() {
   clearPath();
   if (!els.aim) return;
@@ -907,10 +937,14 @@ function drawAim() {
   }
   line.setAttribute('visibility', 'visible');
   line.setAttribute('x1', h.x + 0.5); line.setAttribute('y1', h.y + 0.5);
-  line.setAttribute('x2', S.aim.x);  line.setAttribute('y2', S.aim.y);
+  // garis sampai titik tujuan; jika keluar lapangan, sampai kotak terakhir
+  const pt = kickPoint(h, S.aim);
+  const end = plan.path[plan.path.length - 1];
+  const inside = Math.floor(pt.x) === end.x && Math.floor(pt.y) === end.y;
+  line.setAttribute('x2', inside ? pt.x : end.x + 0.5);
+  line.setAttribute('y2', inside ? pt.y : end.y + 0.5);
   showPath(plan);
 
-  const end = plan.path[plan.path.length - 1];
   const r = plan.receiver;
   const pct = v => Math.round(v * 100) + '%';
   const what = plan.goal ? 'Tembakan'
@@ -918,6 +952,7 @@ function drawAim() {
     : r ? `Ke lawan #${r.num}!`
     : 'Tendang ke ruang kosong';
   const parts = [`<b>${what}</b> · jarak ${plan.d.toFixed(1)}`];
+  if (!inside && !plan.goal) parts.push('mentok batas lapangan');
   if (plan.reach < 1) parts.push(`sampai ${pct(plan.reach)}`);
   const over = plan.blockers.filter(b => b.p.role !== 'GK'), gk = plan.blockers.find(b => b.p.role === 'GK');
   if (over.length) parts.push(`lambung lolos ${over.map(b => pct(b.chance)).join(' × ')}`);
@@ -998,6 +1033,7 @@ function renderHud() {
   const h = holder();
   const showAct = S.phase === 'play' && !S.paused && h && h.team === S.turn && !S.moved;
   $('holderActions').classList.toggle('hidden', !showAct);
+  $('powerBox').classList.toggle('hidden', !(S.phase === 'play' && !S.paused && S.mode === 'kick'));
   const cur = S.selected === (h && h.id) ? S.action : 'other';
   document.querySelectorAll('[data-act]').forEach(b => b.classList.toggle('on', b.dataset.act === cur));
   $('btnSkip').textContent = S.moved ? '✓ Selesai Giliran' : '⏭ Lewati Giliran';
@@ -1041,6 +1077,9 @@ function togglePause() {
 
 $('btnPause').onclick = togglePause;
 $('btnPenalty').onclick = takePenalty;
+$('power').max = CONFIG.COLS + 1;
+$('power').oninput = e => setKickLen(+e.target.value);
+renderPower();
 document.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => setAction(b.dataset.act); });
 $('btnSkip').onclick = () => {
   if (S.phase !== 'play' || S.paused) return;

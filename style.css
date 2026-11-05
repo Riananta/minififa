@@ -239,6 +239,13 @@ main { min-width: 0; }
 .aim-label.below { transform: translate(calc(var(--cell) * .5 - 50%), calc(var(--cell) + 6px)); }
 .aim-label.bad { background: #f87171; color: #fff; }
 .aim-label.hidden { display: none; }
+.power {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--muted);
+  background: #0a1120; border: 1px solid var(--border); border-radius: 10px; padding: 4px 10px;
+}
+.power.hidden { display: none; }
+.power input { width: 120px; accent-color: var(--gold); }
+.power span { color: var(--text); min-width: 64px; font-variant-numeric: tabular-nums; }
 .passes {
   display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 99px;
   background: #0a1120; border: 1px solid var(--border); color: var(--text); font-weight: 700; font-size: 12px;
