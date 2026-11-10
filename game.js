@@ -143,8 +143,31 @@ function matchMinute() {
   return S.half === 2 ? m + 45 : m;
 }
 function pst(p) {
-  if (!S.pstats[p.id]) S.pstats[p.id] = { team: p.team, name: pl(p), g: 0, a: 0, sv: 0, tk: 0, bl: 0, sh: 0 };
+  if (!S.pstats[p.id]) S.pstats[p.id] = { team: p.team, num: p.num, role: p.role, name: pl(p),
+    g: 0, a: 0, sv: 0, tk: 0, bl: 0, sh: 0, ot: 0, ps: 0, pa: 0, ic: 0, fl: 0, yc: 0, rc: 0, og: 0 };
   return S.pstats[p.id];
+}
+
+// Rating pemain 3.0 - 10.0 dari kontribusi di pertandingan
+const RATING_ORDER = [1, 2, 4, 7, 11, 9];
+function playerRatings() {
+  for (const p of S.players) pst(p); // semua pemain di lapangan ikut dinilai
+  const out = { home: [], away: [] };
+  for (const [id, p] of Object.entries(S.pstats)) {
+    const own = S.score[p.team], conc = S.score[other(p.team)];
+    let r = 6.0;
+    r += p.g * 1.2 + p.a * 0.8 + p.ot * 0.25 + (p.sh - p.ot) * 0.05;
+    r += p.sv * 0.5 + p.tk * 0.35 + p.bl * 0.35 + p.ic * 0.3;
+    r += Math.min(p.ps, 8) * 0.08 - (p.pa - p.ps) * 0.1;
+    r -= p.fl * 0.2 + p.yc * 0.4 + p.rc * 1.5 + p.og * 1.2;
+    r += own > conc ? 0.5 : own === conc ? 0.1 : -0.4;
+    if (p.role === 'GK') r += conc === 0 ? 0.8 : -0.35 * conc;
+    if (p.role === 'DF') r += conc === 0 ? 0.5 : -0.2 * conc;
+    const rating = Math.round(Math.max(3, Math.min(10, r)) * 10) / 10;
+    out[p.team].push({ id, num: p.num, name: p.name, role: p.role, r: rating, sentOff: p.rc > 0 });
+  }
+  for (const t of ['home', 'away']) out[t].sort((a, b) => RATING_ORDER.indexOf(a.num) - RATING_ORDER.indexOf(b.num));
+  return out;
 }
 function addTimeline(type, team, text) {
   S.timeline.push({ min: matchMinute(), type, team, text });
@@ -572,7 +595,7 @@ async function handleFoul(fouler, victim, t) {
   render();
   const defSide = sideOf(fouler.team);
   const pen = inBox(S.ball.x, S.ball.y, defSide);
-  S.stats[fouler.team].fouls++;
+  S.stats[fouler.team].fouls++; pst(fouler).fl++;
   addLog(`Pelanggaran ${teamName(fouler.team)} ${pl(fouler)} terhadap ${pl(victim)}${pen ? ' di kotak penalti!' : ''}`, fouler.team, 'info');
   if (pen) addTimeline('pen', victim.team, `Penalti untuk ${teamName(victim.team)} (pelanggaran ${pl(fouler)})`);
   await giveCard(fouler);
@@ -598,6 +621,9 @@ async function giveCard(p) {
     red:    { title: 'KARTU MERAH',        cls: 'red',    log: `Kartu merah langsung untuk ${who}! Keluar lapangan` },
   }[card];
   addLog(info.log, p.team, 'info');
+  if (card === 'yellow') pst(p).yc++;
+  if (card === 'second') { pst(p).yc++; pst(p).rc++; }
+  if (card === 'red') pst(p).rc++;
   if (card === 'yellow') { S.stats[p.team].yellow++; addTimeline('yellow', p.team, `Kartu kuning: ${pl(p)}`); }
   if (card === 'second') { S.stats[p.team].yellow++; S.stats[p.team].red++; addTimeline('second', p.team, `Kartu kuning kedua: ${pl(p)}, kartu merah`); }
   if (card === 'red') { S.stats[p.team].red++; addTimeline('red', p.team, `Kartu merah langsung: ${pl(p)}`); }
@@ -654,7 +680,7 @@ async function takePenalty() {
     await sleep(140);
   }
   S.stats[taker.team].shots++; pst(taker).sh++;
-  S.stats[taker.team].onTarget++;
+  S.stats[taker.team].onTarget++; pst(taker).ot++;
   if (gk && Math.random() < CONFIG.PEN_SAVE) {
     S.stats[def].saves++; pst(gk).sv++;
     addTimeline('pensave', def, `Penalti ${pl(taker)} ditahan kiper ${pl(gk)}`);
@@ -802,14 +828,14 @@ async function doKick(plan) {
     const stopper = lastEv && !lastEv.through ? lastEv.p : null;
     if (plan.goal) {
       st.shots++; pst(k).sh++;
-      if (sim.goal) st.onTarget++;
-      else if (stopper && stopper.role === 'GK') { st.onTarget++; S.stats[stopper.team].saves++; pst(stopper).sv++; }
+      if (sim.goal) { st.onTarget++; pst(k).ot++; }
+      else if (stopper && stopper.role === 'GK') { st.onTarget++; pst(k).ot++; S.stats[stopper.team].saves++; pst(stopper).sv++; }
       else if (stopper) { S.stats[stopper.team].blocks++; pst(stopper).bl++; }
     } else {
-      st.passes++;
+      st.passes++; pst(k).pa++;
       const r0 = sim.receiver;
-      if (r0 && r0.team === k.team && r0 !== k) st.passOk++;
-      else if (r0 && r0.team !== k.team) S.stats[r0.team].intercepts++;
+      if (r0 && r0.team === k.team && r0 !== k) { st.passOk++; pst(k).ps++; }
+      else if (r0 && r0.team !== k.team) { S.stats[r0.team].intercepts++; pst(r0).ic++; }
     }
   }
   if (sim.goal) {
@@ -851,7 +877,7 @@ async function handleGoal(side, kicker, penalty = false) {
   const assist = !own && !penalty && lp && lp.to === kicker.id && lp.from !== kicker.id
     ? S.players.find(q => q.id === lp.from) : null;
   S.events.push({ type: 'goal', team: scorer, scorer: own ? null : kicker.num, assist: assist ? assist.num : null, own });
-  if (!own) pst(kicker).g++;
+  if (!own) pst(kicker).g++; else pst(kicker).og++;
   if (assist) pst(assist).a++;
   S.timeline.push({ min: matchMinute(), type: 'goal', team: scorer, scorer: pl(kicker), own, penalty,
     assist: assist ? pl(assist) : null });
@@ -912,7 +938,11 @@ function endHalf() {
       <div class="btns"><button class="btn primary" id="btnAgain">${m ? 'Lanjut' : 'Main Lagi'}</button></div>`);
     $('btnAgain').onclick = () => {
       hideModal();
-      if (m) { S.match = null; S.speed = 1; m.onEnd(home, away, S.events.slice()); }
+      if (m) {
+        const rt = playerRatings(), toMap = list => Object.fromEntries(list.map(p => [p.num, p.r]));
+        S.match = null; S.speed = 1;
+        m.onEnd(home, away, S.events.slice(), { home: toMap(rt.home), away: toMap(rt.away) });
+      }
       else resetGame();
     };
   }
@@ -958,11 +988,10 @@ function matchReport(res, col) {
       <div class="rp-bar">${tot ? `<i style="width:${hp}%;background:${TEAMS.home.color}"></i><i style="width:${100 - hp}%;background:${TEAMS.away.color}"></i>` : ''}</div>
     </div>`;
   };
-  // pemain terbaik
-  const winner = S.score.home > S.score.away ? 'home' : S.score.away > S.score.home ? 'away' : null;
-  const mom = Object.values(S.pstats)
-    .map(p => ({ ...p, pts: p.g * 4 + p.a * 3 + p.sv * 1.5 + p.tk + p.bl + p.sh * 0.3 + (p.team === winner ? 1 : 0) }))
-    .sort((a, b) => b.pts - a.pts)[0];
+  // rating pemain & pemain terbaik (rating tertinggi)
+  const ratings = playerRatings();
+  const top = [...ratings.home, ...ratings.away].sort((a, b) => b.r - a.r)[0];
+  const mom = top && { ...S.pstats[top.id], rating: top.r };
   const momInfo = p => [p.g && `${p.g} gol`, p.a && `${p.a} assist`, p.sv && `${p.sv} penyelamatan`, p.tk && `${p.tk} rebut bola`, p.bl && `${p.bl} blok`].filter(Boolean).join(', ');
   return `<div class="report">
     <div class="rp-head">
@@ -971,7 +1000,7 @@ function matchReport(res, col) {
       <div class="rp-team"><span class="rp-dot" style="background:${TEAMS.away.color}"></span><b>${name('away')}</b><div class="rp-sc">${scorers('away')}</div></div>
     </div>
     <p class="rp-res" style="color:${col}">${res}</p>
-    ${mom && mom.pts > 1 ? `<div class="rp-mom">⭐ Pemain Terbaik: <b>${mom.name}</b> <small>(${name(mom.team)}${momInfo(mom) ? ' · ' + momInfo(mom) : ''})</small></div>` : ''}
+    ${mom ? `<div class="rp-mom">⭐ Pemain Terbaik: <b>${mom.name}</b> <span class="rt ${ratingClass(mom.rating)}">${mom.rating.toFixed(1)}</span> <small>(${name(mom.team)}${momInfo(mom) ? ' · ' + momInfo(mom) : ''})</small></div>` : ''}
     <h4>Jalannya Pertandingan</h4>
     ${events.length ? `<ul class="rp-tl">${events.map(e => `<li class="${e.team}">
         <span class="min">${e.min}'</span><span class="ic">${icon[e.type] || '•'}</span>
@@ -979,7 +1008,20 @@ function matchReport(res, col) {
       : '<p class="muted">Tidak ada kejadian penting.</p>'}
     <h4>Statistik</h4>
     <div class="rp-stats">${rows.map(bar).join('')}</div>
+    <h4>Rating Pemain</h4>
+    ${ratingTable(ratings, TEAMS.home, TEAMS.away, mom && top.id)}
   </div>`;
+}
+
+const ROLE_LABEL = { GK: 'KIP', DF: 'BEK', MF: 'GEL', FW: 'PEN' };
+const ratingClass = r => r >= 8 ? 'r-top' : r >= 7 ? 'r-good' : r >= 6 ? 'r-ok' : 'r-bad';
+// Tabel rating 2 kolom (tim kandang & tandang); dipakai juga oleh mode liga
+function ratingTable(ratings, H, A, momId) {
+  const col = (list, T) => `<div class="rt-col"><div class="rt-team"><span class="rp-dot sm" style="background:${T.color}"></span>${T.name}</div>
+    ${list.map(p => `<div class="rt-row${p.id === momId ? ' mom' : ''}">
+      <span class="rt-pos">${ROLE_LABEL[p.role] || ''}</span><span class="rt-name">${p.name}${p.sentOff ? ' 🟥' : ''}${p.id === momId ? ' ⭐' : ''}</span>
+      <span class="rt ${ratingClass(p.r)}">${p.r.toFixed(1)}</span></div>`).join('')}</div>`;
+  return `<div class="rt-grid">${col(ratings.home, H)}${col(ratings.away, A)}</div>`;
 }
 
 function resetGame() {
@@ -1437,7 +1479,7 @@ function startMatch(opt) {
   S.paused = false;
   S.bots = new Set(opt.bots);
   setBotLevel(opt.level);
-  S.speed = S.bots.size === 2 ? 3 : 1;
+  S.speed = opt.speed || (S.bots.size === 2 ? 3 : 1);
   S.match = { onEnd: opt.onEnd, knockout: !!opt.knockout };
   $('log').innerHTML = '';
   setupKickoff('home');
