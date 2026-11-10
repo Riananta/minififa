@@ -649,3 +649,25 @@ aside { display: grid; gap: 16px; }
 .dt-p b { font-size: 13px; }
 .dt-p small { font-size: 11px; color: #cbd5e1; }
 .dt-p .club-dot { width: 18px; height: 18px; }
+
+/* tier pemain */
+.player .pname[data-tier]::before {
+  content: attr(data-tier); display: inline-block; margin-right: 3px; padding: 0 3px; border-radius: 3px;
+  font-size: .85em; font-weight: 900; color: #0b1220; background: #94a3b8; text-shadow: none;
+}
+.player .pname[data-tier="S"]::before { background: #fbbf24; }
+.player .pname[data-tier="A"]::before { background: #a3e635; }
+.player .pname[data-tier="B"]::before { background: #7dd3fc; }
+.player .pname[data-tier="C"]::before { background: #cbd5e1; }
+.tier-b { display: inline-block; min-width: 20px; padding: 1px 5px; border-radius: 4px; font-weight: 900; font-size: 12px; color: #0b1220; }
+.tier-b.tS { background: #fbbf24; } .tier-b.tA { background: #a3e635; } .tier-b.tB { background: #7dd3fc; } .tier-b.tC { background: #cbd5e1; }
+.sq-note { margin: 0 0 10px; font-size: 13px; }
+.sq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+@media (max-width: 440px) { .sq-grid { grid-template-columns: 1fr; } }
+.sq { background: #0a1120; border: 1px solid var(--border); border-radius: 12px; padding: 10px; overflow-x: auto; }
+.sq-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.sq-head small { margin-left: auto; color: var(--gold); letter-spacing: 1px; }
+.sq-tbl td, .sq-tbl th { padding: 4px 5px; font-size: 13px; }
+.ag { display: inline-block; min-width: 22px; padding: 0 4px; border-radius: 4px; font-size: 11px; font-weight: 900; }
+.ag.gSp { background: #f59e0b; color: #0b1220; } .ag.gS { background: #fbbf24; color: #0b1220; } .ag.gA { background: #a3e635; color: #0b1220; }
+.ag.gB { background: #7dd3fc; color: #0b1220; } .ag.gC { background: #475569; color: #fff; } .ag.gD { background: #1e293b; color: #94a3b8; }

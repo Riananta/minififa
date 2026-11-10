@@ -188,7 +188,9 @@ function placeFormation(kickTeam = null) {
       let x = (f.kx && t === kickTeam) ? f.kx : f.x;
       if (!left) x = mirrorX(x);
       const name = TEAMS[t].squad ? TEAMS[t].squad[f.num] : null;
-      S.players.push({ id: t + f.num, team: t, num: f.num, role: f.role, x, y: f.y, name });
+      const tier = (TEAMS[t].tiers && TEAMS[t].tiers[f.num]) || 'B';
+      const traits = (TEAMS[t].traits && TEAMS[t].traits[f.num]) || [];
+      S.players.push({ id: t + f.num, team: t, num: f.num, role: f.role, x, y: f.y, name, tier, traits });
     }
   }
 }
@@ -297,9 +299,44 @@ function overChance(p, d, dive = false, close = false, gap = 1) {
 }
 
 // Peluang bola benar-benar sampai ke tujuan (tendangan jauh bisa berhenti di tengah)
-function reachChance(d) {
+function reachChance(d, k) {
   if (d <= CONFIG.REACH_SAFE) return 1;
-  return Math.max(CONFIG.REACH_MIN, 1 - (d - CONFIG.REACH_SAFE) * CONFIG.REACH_DROP);
+  const base = Math.max(CONFIG.REACH_MIN, 1 - (d - CONFIG.REACH_SAFE) * CONFIG.REACH_DROP);
+  if (!k) return base;
+  // penendang dengan Oper tinggi lebih jarang kurang tenaga (tendangan berhenti di tengah)
+  const fail = (1 - base) * (1 - TIER_EFFECT * (attr(k, 'pas') - ATTR_REF));
+  return 1 - Math.max(0, Math.min(0.9, fail));
+}
+
+/* ---------- tier & atribut pemain ----------
+   Tier S/A/B/C menjadi nilai dasar, ditambah kekuatan posisi & ciri khusus.
+   Atribut: sht = Tembak, pas = Oper, def = Bertahan, ctl = Kontrol, kep = Kiper.
+   Setiap duel (penendang vs penghalang, perebut vs pembawa bola) menggeser peluang
+   sekitar TIER_EFFECT per selisih 1 tingkat. Tanpa data tier (pertandingan cepat) semua = B. */
+const TIER_VAL = { S: 3, A: 2, B: 1, C: 0 };
+const ROLE_ATTR = {
+  GK: { sht: -1, pas: 0, def: 0, ctl: 0, kep: 1 },
+  DF: { sht: -1, pas: 0, def: 1, ctl: 0, kep: -2 },
+  MF: { sht: 0, pas: 1, def: 0, ctl: 0.5, kep: -2 },
+  FW: { sht: 1, pas: 0, def: -1, ctl: 0.5, kep: -2 },
+};
+const TRAITS = { fin: { a: 'sht', icon: '🎯', label: 'Finisher' }, pas: { a: 'pas', icon: '🅿️', label: 'Pengumpan' },
+                 dri: { a: 'ctl', icon: '💨', label: 'Dribbler' }, wal: { a: 'def', icon: '🧱', label: 'Tembok' } };
+const TIER_EFFECT = 0.08;
+const ATTR_REF = 2; // nilai atribut pemain tier B pada keahlian posisinya
+function attr(p, a) {
+  if (!p) return ATTR_REF;
+  const role = ROLE_ATTR[p.role] || ROLE_ATTR.MF;
+  return TIER_VAL[p.tier || 'B'] + role[a] + ((p.traits || []).some(t => TRAITS[t] && TRAITS[t].a === a) ? 1 : 0);
+}
+// geser peluang sesuai selisih atribut (positif = menguntungkan penendang / perebut)
+function duel(chance, delta) {
+  if (chance <= 0) return 0;
+  return Math.max(0.01, Math.min(0.97, chance * (1 + TIER_EFFECT * delta)));
+}
+// peluang rebut bola berhasil (di luar pelanggaran): Bertahan perebut vs Kontrol pembawa bola
+function stealChance(tackler, h) {
+  return Math.max(0.35, Math.min(1, 1 + 0.12 * (attr(tackler, 'def') - attr(h, 'ctl'))));
 }
 
 // Kotak-kotak yang dilewati garis dari tengah kotak 'from' ke titik (tx, ty), berurutan.
@@ -360,15 +397,17 @@ function planKick(k, aim, kickLen = S.kickLen) {
     if (p.team === k.team) return;
     if (p === gk) { gkAt = i; return; }
     const close = p.role === 'GK' && inBox(from.x, from.y, sideOf(p.team));
-    blockers.push({ at: i, p, chance: overChance(p, d, false, close) });
+    // duel: Tembak/Oper penendang vs Bertahan (atau Kiper) penghalang
+    const delta = attr(k, goal ? 'sht' : 'pas') - attr(p, p.role === 'GK' ? 'kep' : 'def');
+    blockers.push({ at: i, p, chance: duel(overChance(p, d, false, close), delta) });
   });
   if (gk) {
     const gap = Math.abs(gk.y - end.y);
     blockers.push({ at: gkAt >= 0 ? gkAt : path.length - 1, p: gk, dive: gap > 0, gap,
-      chance: overChance(gk, d, true, inBox(from.x, from.y, goal), gap) });
+      chance: duel(overChance(gk, d, true, inBox(from.x, from.y, goal), gap), attr(k, 'sht') - attr(gk, 'kep')) });
     blockers.sort((a, b) => a.at - b.at);
   }
-  const reach = reachChance(d);
+  const reach = reachChance(d, k);
   const success = blockers.reduce((a, b) => a * b.chance, reach);
   const plan = { from, path, goal, d, blockers, receiver, reach, success };
   plan.cost = kickCost(plan);
@@ -541,6 +580,26 @@ async function performMove(p, t) {
       await handleFoul(p, t.steal, t);
       return;
     }
+    if (t.steal && Math.random() > stealChance(p, t.steal)) {
+      // pembawa bola lolos dari rebutan (Kontrol tinggi); perebut tetap di tempat
+      S.phase = 'animating';
+      S.targets = [];
+      const back = { x: p.x, y: p.y };
+      p.x = t.x - Math.sign(t.x - back.x) * 0.45;
+      p.y = t.y - Math.sign(t.y - back.y) * 0.45;
+      render();
+      await sleep(300);
+      p.x = back.x; p.y = back.y;
+      popup(t.steal, 'LOLOS!', 'ok');
+      addLog(`${pl(t.steal)} lolos dari rebutan ${pl(p)}`, t.steal.team);
+      render();
+      await sleep(300);
+      S.selected = null;
+      S.pickOther = true;
+      S.action = 'kick';
+      continueTurn();
+      return;
+    }
     S.phase = 'animating';
     const dribble = S.ball.x === p.x && S.ball.y === p.y;
     if (t.steal) { t.steal.x = t.push.x; t.steal.y = t.push.y; }
@@ -681,7 +740,8 @@ async function takePenalty() {
   }
   S.stats[taker.team].shots++; pst(taker).sh++;
   S.stats[taker.team].onTarget++; pst(taker).ot++;
-  if (gk && Math.random() < CONFIG.PEN_SAVE) {
+  const save = Math.max(0.05, Math.min(0.5, CONFIG.PEN_SAVE * (1 + TIER_EFFECT * (attr(gk, 'kep') - attr(taker, 'sht')))));
+  if (gk && Math.random() < save) {
     S.stats[def].saves++; pst(gk).sv++;
     addTimeline('pensave', def, `Penalti ${pl(taker)} ditahan kiper ${pl(gk)}`);
     popup(gk, 'DITAHAN!', 'bad');
@@ -1138,6 +1198,7 @@ function renderPieces() {
     if (p.name) {
       if (!nm) { nm = document.createElement('span'); nm.className = 'pname'; el.appendChild(nm); }
       if (nm.textContent !== p.name) nm.textContent = p.name;
+      if (TEAMS[p.team].tiers) nm.dataset.tier = p.tier; else delete nm.dataset.tier;
       nm.classList.toggle('top', p.y === CONFIG.ROWS - 1); // baris paling bawah: nama di atas lingkaran
     } else if (nm) nm.remove();
     const playing = S.phase === 'play' || S.phase === 'animating';
@@ -1467,8 +1528,8 @@ function showMainMenu() {
 // Mulai pertandingan dari mode liga. opt = { home:{name,color}, away:{name,color}, bots:[...], onEnd, knockout, label }
 function startMatch(opt) {
   if (typeof League !== 'undefined') League.hideHub();
-  TEAMS.home = { name: opt.home.name, color: opt.home.color, squad: opt.home.squad || null };
-  TEAMS.away = { name: opt.away.name, color: opt.away.color, squad: opt.away.squad || null };
+  TEAMS.home = { name: opt.home.name, color: opt.home.color, squad: opt.home.squad || null, tiers: opt.home.tiers || null, traits: opt.home.traits || null };
+  TEAMS.away = { name: opt.away.name, color: opt.away.color, squad: opt.away.squad || null, tiers: opt.away.tiers || null, traits: opt.away.traits || null };
   newStats();
   applyTeamColors();
   S.half = 1;
@@ -1703,16 +1764,24 @@ function holdValue(c, t) {
 const lossValue = (c, t) => -(4 + 6 * (1 - progress(c.x, t)));
 
 // (B) Bisa direbut lawan di giliran berikutnya? Memakai aturan gerak sebenarnya (lurus 3, diagonal 1)
-function canBeStolen(h) {
-  if (h.role === 'GK') return false; // bola tidak bisa direbut dari kiper
-  return S.players.some(o => o.team !== h.team && o.role !== 'GK' && moveTargets(o).some(m => m.steal));
+function canBeStolen(h) { return stealRisk(h) > 0; }
+// peluang terbesar bola h direbut lawan di giliran berikutnya (memperhitungkan Bertahan vs Kontrol)
+function stealRisk(h) {
+  if (h.role === 'GK') return 0; // bola tidak bisa direbut dari kiper
+  let best = 0;
+  for (const o of S.players) {
+    if (o.team === h.team || o.role === 'GK') continue;
+    if (moveTargets(o).some(m => m.steal)) best = Math.max(best, stealChance(o, h));
+  }
+  return best;
 }
 // (B/D) Nilai menahan bola di posisi sekarang, memperhitungkan risiko direbut (75% berhasil)
 function safeValue(h) {
   const v = holdValue(h, h.team);
-  if (!canBeStolen(h)) return v;
-  const ok = CONFIG.FOUL_CHANCE; // rebutan jadi pelanggaran = bola tetap milik kita
-  const risky = ok * v + (1 - ok) * lossValue(h, h.team);
+  const pr = stealRisk(h);
+  if (!pr) return v;
+  const lose = (1 - CONFIG.FOUL_CHANCE) * pr; // pelanggaran / gagal rebut = bola tetap milik kita
+  const risky = (1 - lose) * v + lose * lossValue(h, h.team);
   return v - botLevel.risk * (v - risky); // level rendah kurang peka risiko
 
 }
@@ -1997,7 +2066,8 @@ function botDecide() {
           m.steal.x = m.push.x; m.steal.y = m.push.y; p.x = m.x; p.y = m.y;
           return holderValue(p, S.energy - m.cost, 0, new Set([...S.used, p.id]));
         });
-        const ev = (1 - CONFIG.FOUL_CHANCE) * won + CONFIG.FOUL_CHANCE * (box ? -0.8 * BOT.GOAL_V : -2 + idle * 0.5) - BOT.COST_W * m.cost;
+        const ps = stealChance(p, h), ok = 1 - CONFIG.FOUL_CHANCE;
+        const ev = ok * ps * won + ok * (1 - ps) * idle + CONFIG.FOUL_CHANCE * (box ? -0.8 * BOT.GOAL_V : -2 + idle * 0.5) - BOT.COST_W * m.cost;
         if (!steal || ev > steal.ev) steal = { ev, p, m };
       }
     }

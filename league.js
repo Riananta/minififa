@@ -52,6 +52,45 @@ const League = (() => {
     mun: { 1: 'Lammens',    2: 'Dalot',       4: 'De Ligt',      7: 'Bruno F.',    11: 'Cunha',      9: 'Šeško' },
     acm: { 1: 'Maignan',    2: 'Tomori',      4: 'Gabbia',       7: 'Pulisic',     11: 'Modrić',     9: 'Leão' },
   };
+  // Tier pemain (S/A/B/C) relatif terhadap sesama 96 pemain ini, sesuai kualitas nyata (s.d. pertengahan 2026)
+  // urutan nomor: 1 kiper, 2 & 4 bek, 7 & 11 gelandang, 9 penyerang
+  const TIERS = {
+    rma: { 1: 'S', 2: 'A', 4: 'A', 7: 'A', 11: 'S', 9: 'S' },
+    mci: { 1: 'S', 2: 'A', 4: 'A', 7: 'S', 11: 'A', 9: 'S' },
+    liv: { 1: 'S', 2: 'A', 4: 'A', 7: 'A', 11: 'S', 9: 'S' },
+    ars: { 1: 'S', 2: 'S', 4: 'A', 7: 'A', 11: 'S', 9: 'A' },
+    bay: { 1: 'A', 2: 'A', 4: 'A', 7: 'S', 11: 'S', 9: 'S' },
+    bar: { 1: 'A', 2: 'A', 4: 'A', 7: 'S', 11: 'S', 9: 'S' },
+    psg: { 1: 'B', 2: 'S', 4: 'A', 7: 'S', 11: 'S', 9: 'S' },
+    int: { 1: 'B', 2: 'A', 4: 'A', 7: 'A', 11: 'A', 9: 'A' },
+    atm: { 1: 'A', 2: 'B', 4: 'B', 7: 'A', 11: 'B', 9: 'A' },
+    che: { 1: 'B', 2: 'A', 4: 'B', 7: 'A', 11: 'A', 9: 'A' },
+    lev: { 1: 'B', 2: 'A', 4: 'B', 7: 'B', 11: 'C', 9: 'B' },
+    nap: { 1: 'B', 2: 'B', 4: 'B', 7: 'A', 11: 'A', 9: 'B' },
+    juv: { 1: 'B', 2: 'B', 4: 'A', 7: 'A', 11: 'B', 9: 'B' },
+    bvb: { 1: 'A', 2: 'B', 4: 'A', 7: 'B', 11: 'B', 9: 'A' },
+    mun: { 1: 'C', 2: 'B', 4: 'B', 7: 'A', 11: 'B', 9: 'B' },
+    acm: { 1: 'A', 2: 'B', 4: 'C', 7: 'A', 11: 'A', 9: 'A' },
+  };
+  // Ciri khusus: fin = Finisher (Tembak), pas = Pengumpan (Oper), dri = Dribbler (Kontrol), wal = Tembok (Bertahan)
+  const TRAIT_DATA = {
+    rma: { 2: ['pas'], 11: ['fin'], 9: ['fin', 'dri'] },
+    mci: { 2: ['wal'], 7: ['pas'], 9: ['fin'] },
+    liv: { 2: ['dri'], 4: ['wal'], 7: ['fin'], 11: ['pas', 'dri'], 9: ['fin'] },
+    ars: { 2: ['wal'], 4: ['wal'], 7: ['dri'], 11: ['pas'], 9: ['fin'] },
+    bay: { 4: ['wal'], 7: ['dri', 'pas'], 11: ['pas'], 9: ['fin', 'pas'] },
+    bar: { 7: ['dri', 'pas'], 11: ['pas'], 9: ['fin'] },
+    psg: { 2: ['dri'], 4: ['wal'], 7: ['pas'], 11: ['dri'], 9: ['fin', 'dri'] },
+    int: { 2: ['pas'], 4: ['wal'], 11: ['pas'], 9: ['fin'] },
+    atm: { 4: ['wal'], 7: ['pas'], 9: ['fin'] },
+    che: { 7: ['fin', 'pas'], 11: ['pas'] },
+    lev: { 2: ['pas'], 7: ['pas'], 9: ['fin'] },
+    nap: { 4: ['wal'], 7: ['fin'], 11: ['pas'] },
+    juv: { 4: ['wal'], 7: ['dri'], 9: ['fin'] },
+    bvb: { 7: ['dri'], 9: ['fin'] },
+    mun: { 7: ['pas'], 11: ['dri'] },
+    acm: { 11: ['pas'], 9: ['dri'] },
+  };
   const CUP_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
   // tingkat kesulitan komputer lawan
   const LEVELS = [
@@ -87,7 +126,12 @@ const League = (() => {
     try { save = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { save = null; }
     if (save && save.v !== 1) save = null;
     // karier lama (sebelum ada nama pemain): lengkapi daftar pemain
-    if (save) for (const c of save.clubs) if (!c.squad) c.squad = { ...SQUADS[c.id] };
+    if (save) for (const c of save.clubs) {
+      if (!c.squad) c.squad = { ...SQUADS[c.id] };
+      if (!c.tiers) c.tiers = { ...TIERS[c.id] };
+      if (!c.traits) c.traits = JSON.parse(JSON.stringify(TRAIT_DATA[c.id] || {}));
+      if (c.form == null) c.form = 0;
+    }
     // karier lama (sebelum ada tingkat kesulitan) tetap Hard seperti sebelumnya
     if (save && !save.difficulty) save.difficulty = 'hard';
     // karier lama = mode Main Sendiri
@@ -150,7 +194,7 @@ const League = (() => {
       <div class="btns"><button class="btn ghost" id="btnModeBack">← Kembali</button></div>`);
     el('mSolo').onclick = () => pickTeam();
     el('mCpu').onclick = () => {
-      save = { v: 1, mode: 'cpu', user: null, difficulty: 'hard', clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] } })), history: [] };
+      save = { v: 1, mode: 'cpu', user: null, difficulty: 'hard', clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] }, tiers: { ...TIERS[c.id] }, traits: JSON.parse(JSON.stringify(TRAIT_DATA[c.id] || {})), form: 0 })), history: [] };
       newSeason(START_YEAR);
       persist();
       hideModal();
@@ -162,7 +206,8 @@ const League = (() => {
   }
 
   function pickTeam() {
-    const list = CLUBS.slice().sort((a, b) => b.rating - a.rating);
+    const st = c => 80 + 3 * NUMS.reduce((a, n) => a + TV[TIERS[c.id][n]], 0) / NUMS.length;
+    const list = CLUBS.slice().sort((a, b) => st(b) - st(a));
     showModal(`
       <h2>Pilih Tim</h2>
       <p>Musim ${seasonName(START_YEAR)} · 16 tim · liga kandang-tandang + piala</p>
@@ -174,7 +219,7 @@ const League = (() => {
       <div class="club-grid">
         ${list.map(c => `<button class="club-btn" data-club="${c.id}">
           <span class="club-dot" style="background:${c.color}"></span>
-          <b>${h(c.name)}</b><small>${stars(c.rating)}</small></button>`).join('')}
+          <b>${h(c.name)}</b><small>${stars(st(c))}</small></button>`).join('')}
       </div>
       <div class="btns"><button class="btn ghost" id="btnPickBack">← Kembali</button></div>`);
     let lvl = 'medium';
@@ -187,7 +232,7 @@ const League = (() => {
     });
     document.querySelectorAll('[data-club]').forEach(b => {
       b.onclick = () => {
-        save = { v: 1, mode: 'solo', user: b.dataset.club, difficulty: lvl, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] } })), history: [] };
+        save = { v: 1, mode: 'solo', user: b.dataset.club, difficulty: lvl, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] }, tiers: { ...TIERS[c.id] }, traits: JSON.parse(JSON.stringify(TRAIT_DATA[c.id] || {})), form: 0 })), history: [] };
         newSeason(START_YEAR);
         persist();
         hideModal();
@@ -198,7 +243,7 @@ const League = (() => {
     });
     el('btnPickBack').onclick = () => pickMode();
   }
-  const stars = r => '★'.repeat(Math.max(1, Math.round((r - 78) / 3))) ;
+  const stars = r => '★'.repeat(Math.max(1, Math.round((r - 80) / 1.5)));
 
   /* ---------- simulasi ---------- */
   function poisson(l) {
@@ -207,8 +252,17 @@ const League = (() => {
     do { k++; p *= Math.random(); } while (p > L);
     return k - 1;
   }
+  // kekuatan tim: rata-rata tier pemain (+ sedikit "form" musiman)
+  const TV = { S: 3, A: 2, B: 1, C: 0 };
+  function strength(cid) {
+    const c = club(cid), t = c.tiers || TIERS[cid];
+    const avg = NUMS.reduce((a, n) => a + TV[t[n] || 'B'], 0) / NUMS.length;
+    return 80 + 3 * avg + (c.form || 0);
+  }
+  // pemain semu untuk menghitung atribut (memakai fungsi attr() dari mesin game)
+  const pseudo = (cid, n) => { const c = club(cid); return { role: ROLE_OF[n], tier: (c.tiers || {})[n] || 'B', traits: (c.traits || {})[n] || [] }; };
   function simScore(hid, aid) {
-    const d = (club(hid).rating - club(aid).rating) / 22;
+    const d = (strength(hid) - strength(aid)) / 22;
     return [poisson(1.45 * Math.exp(d)), poisson(1.15 * Math.exp(-d))];
   }
   // Adu penalti: 5 tendangan per tim, lalu sudden death
@@ -236,10 +290,15 @@ const League = (() => {
   // pencetak gol & assist acak (berbobot posisi) untuk pertandingan yang diundi
   function genGoals(cid, n) {
     const out = [];
+    const gw = {}, aw = {};
+    for (const k of NUMS) {
+      gw[k] = GOAL_W[k] * Math.max(0.2, 1 + 0.25 * (attr(pseudo(cid, k), 'sht') - 2));
+      aw[k] = ASSIST_W[k] * Math.max(0.2, 1 + 0.25 * (attr(pseudo(cid, k), 'pas') - 2));
+    }
     for (let i = 0; i < n; i++) {
-      const s = pick(GOAL_W);
+      const s = pick(gw);
       let a = null;
-      if (Math.random() < ASSIST_CHANCE) { const w = { ...ASSIST_W }; delete w[s]; a = pick(w); }
+      if (Math.random() < ASSIST_CHANCE) { const w = { ...aw }; delete w[s]; a = pick(w); }
       out.push({ c: cid, s, a });
     }
     return out;
@@ -250,7 +309,8 @@ const League = (() => {
       const out = {};
       for (const n of NUMS) {
         const role = ROLE_OF[n];
-        let r = 6.3 + (Math.random() + Math.random() + Math.random() - 1.5) * 0.45;
+        let r = 6.3 + (Math.random() + Math.random() + Math.random() - 1.5) * 0.45
+          + 0.15 * (TV[((club(cid).tiers || {})[n]) || 'B'] - 1.5);
         for (const g of m.goals || []) if (g.c === cid && !g.og) { if (g.s === n) r += 1.1; if (g.a === n) r += 0.7; }
         r += own > conc ? 0.5 : own === conc ? 0.1 : -0.4;
         if (role === 'GK') r += conc === 0 ? 0.8 : -0.3 * conc;
@@ -300,7 +360,8 @@ const League = (() => {
     const H = club(m.h), A = club(m.a);
     let ac = A.color;
     if (colorDist(H.color, ac) < 120) ac = colorDist(H.color, A.alt) >= 120 ? A.alt : '#f97316';
-    return { home: { name: H.name, color: H.color, squad: H.squad }, away: { name: A.name, color: ac, squad: A.squad } };
+    return { home: { name: H.name, color: H.color, squad: H.squad, tiers: H.tiers, traits: H.traits },
+             away: { name: A.name, color: ac, squad: A.squad, tiers: A.tiers, traits: A.traits } };
   }
 
   async function playUserMatch(how) {
@@ -402,7 +463,7 @@ const League = (() => {
       <div class="btns"><button class="btn primary" id="btnNextSeason">Mulai Musim ${seasonName(save.year + 1)}</button></div>`);
     el('btnNextSeason').onclick = () => {
       // kekuatan tim sedikit berubah tiap musim
-      for (const c of save.clubs) c.rating = Math.max(74, Math.min(93, c.rating + Math.round((Math.random() - 0.5) * 6)));
+      for (const c of save.clubs) c.form = Math.round((Math.random() - 0.5) * 4);
       newSeason(save.year + 1);
       persist();
       hideModal();
@@ -613,7 +674,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['cup', 'Piala'], ['history', 'Juara & Penghargaan']]
+        ${[['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ['history', 'Juara & Penghargaan']]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -709,6 +770,21 @@ const League = (() => {
         <div><h4>🎯 Top Assist Liga</h4>${list(st.assists, 'assist')}</div>
         <div><h4>⭐ Rating Rata-rata Tertinggi</h4>${rtList}</div>
       </div>`;
+    }
+    if (tab === 'squads') {
+      // tier, ciri & atribut setiap pemain; tim diurutkan dari yang terkuat
+      const grade = v => v >= 4 ? 'S+' : v >= 3 ? 'S' : v >= 2 ? 'A' : v >= 1 ? 'B' : v >= 0 ? 'C' : 'D';
+      const cell = (v, key) => `<td><span class="ag g${grade(v).replace('+', 'p')}" title="${key}">${grade(v)}</span></td>`;
+      const clubs = save.clubs.slice().sort((a, b) => strength(b.id) - strength(a.id));
+      return `<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
+        <div class="sq-grid">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
+          <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b><small>${stars(strength(c.id))}</small></div>
+          <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
+          ${NUMS.map(n => { const ps = pseudo(c.id, n), tr = (c.traits || {})[n] || [];
+            return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
+              <td><span class="tier-b t${ps.tier}">${ps.tier}</span></td>
+              ${['sht', 'pas', 'def', 'ctl'].map(a => cell(attr(ps, a), a)).join('')}${ps.role === 'GK' ? cell(attr(ps, 'kep'), 'kep') : '<td class="muted">-</td>'}</tr>`; }).join('')}
+          </tbody></table></div>`).join('')}</div>`;
     }
     if (tab === 'cup') {
       const cols = CUP_ROUNDS.map((name, r) => {
