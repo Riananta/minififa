@@ -1436,6 +1436,7 @@ function startMatch(opt) {
   S.sentOff = new Set();
   S.paused = false;
   S.bots = new Set(opt.bots);
+  setBotLevel(opt.level);
   S.speed = S.bots.size === 2 ? 3 : 1;
   S.match = { onEnd: opt.onEnd, knockout: !!opt.knockout };
   $('log').innerHTML = '';
@@ -1587,6 +1588,7 @@ function showSetup() {
     newStats();
     S.vs = cfg.vs;
     S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
+    setBotLevel('hard');
     S.match = null;
     S.speed = 1;
     applyTeamColors();
@@ -1604,10 +1606,33 @@ function showSetup() {
 const BOT = {
   STEP_MS: 700,       // jeda antar aksi agar terlihat
   GOAL_V: 40,         // nilai sebuah gol
-  COST_W: 0.02,       // penalti kecil per energi (sisa energi toh hangus)
-  MARGIN: 0.3,        // aksi bola harus lebih baik dari menahan bola minimal segini
+  COST_W: 0.05,       // penalti kecil per energi
+  MARGIN: 0.4,        // aksi harus lebih baik dari diam minimal segini
+  SPACE_MAX: 8,       // jarak maksimal tendangan ke ruang kosong
+  SHOT_ROWS: [1.25, 1.5, 1.75, 2.5, 3.25, 3.5, 3.75], // titik bidik di mulut gawang
+  TEMPO: 1.8,         // tiap giliran pasif (pegang bola tanpa maju), "diam" makin tidak menarik
+  TEMPO_MAX: 4,
 };
+// Tingkat kesulitan komputer. Hard = kemampuan penuh; Medium & Easy sengaja dibatasi.
+//  depth    : berpikir berapa langkah ke depan (1 = rencana 2 langkah)
+//  space    : boleh umpan ke ruang kosong
+//  support  : pemain tanpa bola bergerak membuka ruang operan
+//  risk     : seberapa peka terhadap risiko bola direbut (0..1)
+//  defMoves : maksimal gerakan bertahan per giliran
+//  mistake  : peluang salah memilih aksi tiap langkah
+//  variety  : selisih nilai yang masih dianggap "sama bagus" (makin besar makin acak)
+//  press    : nilai tambah pressing saat bertahan
+//  maxActs  : maksimal aksi per giliran
+const BOT_LEVELS = {
+  easy:   { label: 'Easy',   depth: 0, space: false, support: false, risk: 0.35, defMoves: 1,  mistake: 0.35, variety: 2.5, press: 0,   defMin: 2.0, maxActs: 4 },
+  medium: { label: 'Medium', depth: 0, space: true,  support: true,  risk: 0.75, defMoves: 3,  mistake: 0.15, variety: 1.2, press: 0.6, defMin: 1.0, maxActs: 8 },
+  hard:   { label: 'Hard',   depth: 1, space: true,  support: true,  risk: 1,    defMoves: 99, mistake: 0,    variety: 0.6, press: 1.2, defMin: 0.6, maxActs: 40 },
+};
+let botLevel = BOT_LEVELS.hard;
+function setBotLevel(key) { botLevel = BOT_LEVELS[key] || BOT_LEVELS.hard; }
+let botDefMoves = 0; // gerakan bertahan yang sudah dipakai giliran ini
 let botBusy = false;
+const botPassive = { home: 0, away: 0 }; // jumlah giliran beruntun tim memegang bola tanpa kemajuan
 let botTouched = new Set(); // pemain bot yang sudah memegang bola giliran ini
 
 async function botWait(ms) {
@@ -1619,23 +1644,200 @@ const attackGoalX = t => (sideOf(t) === 'left' ? CONFIG.COLS + 1 : 0);
 const progress = (x, t) => (sideOf(t) === 'left' ? x : CONFIG.COLS + 1 - x) / (CONFIG.COLS + 1);
 const cheb = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const cellKey = c => c.x + ',' + c.y;
 
-// Tekanan lawan di sekitar kotak c (lawan dekat = bola mudah direbut giliran berikutnya)
-function pressure(c, t) {
-  let p = 0;
-  for (const q of S.players) {
-    if (q.team === t || q.role === 'GK') continue;
-    const d = cheb(q, c);
-    p += d <= 1 ? 1 : d === 2 ? 0.5 : d === 3 ? 0.2 : 0;
-  }
-  return p;
+// Jalankan perhitungan pada posisi "seandainya", lalu kembalikan posisi semula
+function withState(fn) {
+  const pos = S.players.map(p => [p, p.x, p.y]);
+  const ball = { ...S.ball };
+  try { return fn(); } finally { for (const [p, x, y] of pos) { p.x = x; p.y = y; } S.ball = ball; }
 }
-// Nilai posisi pembawa bola untuk tim t
+
+// Nilai dasar posisi pembawa bola: makin dekat gawang lawan makin bernilai
 function holdValue(c, t) {
-  return 14 * progress(c.x, t) + (CONFIG.GOAL_ROWS.includes(c.y) ? 0.6 : 0) - 1.5 * pressure(c, t);
+  return 14 * progress(c.x, t) + (CONFIG.GOAL_ROWS.includes(c.y) ? 0.6 : 0);
 }
 // Kerugian jika bola hilang di kotak c (makin dekat gawang sendiri makin buruk)
 const lossValue = (c, t) => -(4 + 6 * (1 - progress(c.x, t)));
+
+// (B) Bisa direbut lawan di giliran berikutnya? Memakai aturan gerak sebenarnya (lurus 3, diagonal 1)
+function canBeStolen(h) {
+  if (h.role === 'GK') return false; // bola tidak bisa direbut dari kiper
+  return S.players.some(o => o.team !== h.team && o.role !== 'GK' && moveTargets(o).some(m => m.steal));
+}
+// (B/D) Nilai menahan bola di posisi sekarang, memperhitungkan risiko direbut (75% berhasil)
+function safeValue(h) {
+  const v = holdValue(h, h.team);
+  if (!canBeStolen(h)) return v;
+  const ok = CONFIG.FOUL_CHANCE; // rebutan jadi pelanggaran = bola tetap milik kita
+  const risky = ok * v + (1 - ok) * lossValue(h, h.team);
+  return v - botLevel.risk * (v - risky); // level rendah kurang peka risiko
+
+}
+
+// Tembakan terbaik dari posisi h (vary = pilih acak di antara yang hampir sama bagusnya)
+function bestShot(h, E, vary = false) {
+  const gx = attackGoalX(h.team) + 0.5;
+  const plans = [];
+  for (const gy of BOT.SHOT_ROWS) {
+    const p = planKick(h, { x: gx, y: gy }, 0);
+    if (p && p.goal && p.cost <= E) plans.push(p);
+  }
+  if (!plans.length) return null;
+  const top = Math.max(...plans.map(p => p.success));
+  const near = vary ? plans.filter(p => p.success >= top - 0.04) : plans.filter(p => p.success === top);
+  return near[Math.floor(Math.random() * near.length)];
+}
+const shotSuccess = h => { const p = bestShot(h, 99); return p ? p.success : 0; };
+const shotEV = plan => plan.success * BOT.GOAL_V - (1 - plan.success) * 1.5;
+
+// (F) Nilai terbaik yang bisa dicapai pembawa bola dengan energi E, melihat `depth` langkah ke depan
+function holderValue(h, E, depth, used) {
+  let v = safeValue(h);
+  const sh = bestShot(h, E);
+  if (sh) v = Math.max(v, shotEV(sh));
+  if (depth > 0) for (const o of holderOptions(h, E, depth - 1, used, false)) v = Math.max(v, o.ev - BOT.COST_W * o.cost);
+  return v;
+}
+
+// Daftar aksi pembawa bola beserta nilai harapannya (ev). space = ikut menilai tendangan ke ruang kosong
+function holderOptions(own, E, depth, used, space) {
+  const t = own.team, opts = [];
+  // tembak
+  const sh = bestShot(own, E, true);
+  if (sh) opts.push({ kind: 'shot', ev: shotEV(sh), cost: sh.cost, run: kickAct(own, sh) });
+
+  // oper ke teman
+  for (const r of S.players) {
+    if (r.team !== t || r === own) continue;
+    let best = null;
+    for (const [ox, oy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+      const plan = planKick(own, { x: r.x + ox, y: r.y + oy }, 0);
+      if (!plan || plan.receiver !== r || plan.cost > E) continue;
+      if (!best || plan.success > best.success) best = plan;
+    }
+    if (!best) continue;
+    const lose = best.blockers[0] ? best.path[best.blockers[0].at] : best.path[Math.floor(best.path.length / 2)];
+    let gain = withState(() => { S.ball = { x: r.x, y: r.y }; return holderValue(r, E - best.cost, depth, used); });
+    if (botTouched.has(r.id)) gain -= 3; // hindari oper bolak-balik
+    opts.push({ kind: 'pass', ev: best.success * gain + (1 - best.success) * lossValue(lose, t), cost: best.cost, run: kickAct(own, best) });
+  }
+
+  // giring
+  if (!used.has(own.id) && !S.setPiece) {
+    const used2 = new Set(used).add(own.id);
+    for (const m of moveTargets(own)) {
+      if (m.cost > E) continue;
+      const ev = withState(() => { own.x = m.x; own.y = m.y; S.ball = { x: m.x, y: m.y }; return holderValue(own, E - m.cost, depth, used2); });
+      opts.push({ kind: 'dribble', ev, cost: m.cost, run: moveAct(own, m) });
+    }
+  }
+
+  // (E) tendangan ke ruang kosong
+  if (space) {
+    const oppReach = new Set(), ownNext = new Set();
+    const runners = [];
+    for (const p of S.players) {
+      if (p === own) continue;
+      for (const m of moveTargets(p)) {
+        if (m.steal) continue;
+        if (p.team !== t) oppReach.add(cellKey(m));
+        else {
+          ownNext.add(cellKey(m));
+          if (!used.has(p.id) && p.role !== 'GK') runners.push({ p, m });
+        }
+      }
+    }
+    for (let y = 0; y < CONFIG.ROWS; y++) for (let x = 1; x <= CONFIG.COLS; x++) {
+      const c = { x, y }, k = cellKey(c);
+      if (playerAt(x, y) || cheb(c, own) > BOT.SPACE_MAX || cheb(c, own) < 2) continue;
+      if (progress(x, t) < progress(own.x, t) - 0.08) continue; // hanya ke depan / samping
+      const run = runners.filter(r => r.m.x === x && r.m.y === y);
+      const safeNext = !oppReach.has(k) && ownNext.has(k);
+      if (!run.length && !safeNext) continue;
+      const plan = planKick(own, { x: x + 0.5, y: y + 0.5 }, 0);
+      if (!plan || plan.receiver || plan.goal) continue;
+      const end = plan.path[plan.path.length - 1];
+      if (end.x !== x || end.y !== y || plan.cost > E) continue;
+      let val = -Infinity;
+      // dijemput teman di giliran ini
+      for (const r of run) {
+        const left = E - plan.cost - r.m.cost;
+        if (left < 0) continue;
+        const v = withState(() => { r.p.x = x; r.p.y = y; S.ball = { x, y }; return holderValue(r.p, left, 0, used); }) - BOT.COST_W * r.m.cost;
+        val = Math.max(val, v);
+      }
+      // aman sampai giliran berikutnya: lawan tidak terjangkau, teman terjangkau
+      if (safeNext) val = Math.max(val, 0.85 * holdValue(c, t));
+      if (val === -Infinity) continue;
+      const lose = plan.blockers[0] ? plan.path[plan.blockers[0].at] : plan.path[Math.floor(plan.path.length / 2)];
+      opts.push({ kind: 'space', ev: plan.success * val + (1 - plan.success) * 0.7 * lossValue(lose, t), cost: plan.cost, run: kickAct(own, plan) });
+    }
+  }
+  return opts;
+}
+
+// (C) Ancaman: peluang gol terbaik tim lawan (penyerang) di giliran berikutnya, dilihat dari tim bertahan t
+function threat(t) {
+  const a = other(t), h = holder();
+  if (h && h.team === a) {
+    let best = shotSuccess(h);
+    // giring maju lalu tembak
+    for (const m of moveTargets(h)) {
+      if (m.steal || progress(m.x, a) < progress(h.x, a)) continue;
+      best = Math.max(best, withState(() => { h.x = m.x; h.y = m.y; S.ball = { x: m.x, y: m.y }; return shotSuccess(h); }));
+    }
+    // oper ke teman lalu tembak
+    for (const q of S.players) {
+      if (q.team !== a || q === h || q.role === 'GK') continue;
+      const pp = planKick(h, { x: q.x + 0.5, y: q.y + 0.5 }, 0);
+      if (!pp || pp.receiver !== q) continue;
+      best = Math.max(best, pp.success * withState(() => { S.ball = { x: q.x, y: q.y }; return shotSuccess(q); }));
+    }
+    return best;
+  }
+  if (!h) {
+    // bola lepas: lawan yang bisa menjangkau bola lalu menembak
+    let best = 0;
+    for (const q of S.players) {
+      if (q.team !== a || !moveTargets(q).some(m => m.x === S.ball.x && m.y === S.ball.y)) continue;
+      best = Math.max(best, 0.8 * withState(() => { q.x = S.ball.x; q.y = S.ball.y; return shotSuccess(q); }));
+    }
+    return best;
+  }
+  return 0;
+}
+
+// (C/A) Gerakan bertahan terbaik: yang paling menurunkan ancaman. Kiper ikut dinilai dengan cara sama.
+function bestDefenseMove(t) {
+  const base = threat(t);
+  const h = holder();
+  const goalX = sideOf(t) === 'left' ? 0 : CONFIG.COLS + 1;
+  let best = null;
+  for (const p of S.players) {
+    if (p.team !== t || S.used.has(p.id)) continue;
+    for (const m of moveTargets(p)) {
+      if (m.steal || m.cost > S.energy) continue;
+      // pangkas: hanya kotak di sekitar bola atau di antara bola & gawang sendiri (kiper selalu dinilai)
+      if (p.role !== 'GK') {
+        const bx = S.ball.x, between = goalX < bx ? m.x <= bx + 1 : m.x >= bx - 1;
+        if (cheb(m, S.ball) > 4 && !between) continue;
+      }
+      if (!h && m.x === S.ball.x && m.y === S.ball.y) continue; // ambil bola ditangani terpisah
+      let press = false;
+      const th = withState(() => {
+        const could = h && h.team !== t && moveTargets(p).some(x => x.steal);
+        p.x = m.x; p.y = m.y;
+        // pressing: setelah bergerak, pemain ini bisa merebut bola di giliran berikutnya
+        press = !could && h && h.team !== t && h.role !== 'GK' && moveTargets(p).some(x => x.steal);
+        return threat(t);
+      });
+      const score = (base - th) * BOT.GOAL_V - BOT.COST_W * m.cost + (press ? botLevel.press : 0);
+      if (!best || score > best.score) best = { score, p, m };
+    }
+  }
+  return { base, best };
+}
 
 function kickAct(own, plan) {
   return async () => {
@@ -1656,142 +1858,131 @@ function moveAct(p, t) {
   };
 }
 
-// Pilihan untuk pembawa bola: tembak, oper, giring
-function holderOptions(own) {
-  const t = own.team, opts = [];
-  // tembakan: coba beberapa titik di mulut gawang
-  const gx = attackGoalX(t) + 0.5;
-  let bestShot = null;
-  for (let gy = 1.15; gy < 3.9; gy += 0.3) {
-    const plan = planKick(own, { x: gx, y: gy }, 0);
-    if (!plan || !plan.goal || plan.cost > S.energy) continue;
-    if (!bestShot || plan.success > bestShot.success) bestShot = plan;
-  }
-  if (bestShot) opts.push({ ev: bestShot.success * BOT.GOAL_V - (1 - bestShot.success), cost: bestShot.cost, run: kickAct(own, bestShot) });
-
-  // operan ke teman: coba beberapa titik di kotak teman
-  for (const r of S.players) {
-    if (r.team !== t || r === own) continue;
-    let best = null;
-    for (const [ox, oy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
-      const plan = planKick(own, { x: r.x + ox, y: r.y + oy }, 0);
-      if (!plan || plan.receiver !== r || plan.cost > S.energy) continue;
-      if (!best || plan.success > best.success) best = plan;
-    }
-    if (!best) continue;
-    const lose = best.blockers[0] ? best.path[best.blockers[0].at] : best.path[Math.floor(best.path.length / 2)];
-    // penerima yang lebih maju & masih bisa menggiring sedikit lebih bernilai;
-    // operan balik ke pemain yang sudah pegang bola giliran ini dihindari (tidak bolak-balik)
-    let gain = holdValue(r, t);
-    if (!S.used.has(r.id) && progress(r.x, t) > progress(own.x, t)) gain += 0.4;
-    if (botTouched.has(r.id)) gain -= 3;
-    opts.push({ ev: best.success * gain + (1 - best.success) * lossValue(lose, t), cost: best.cost, run: kickAct(own, best) });
-  }
-
-  // giring
-  if (!S.used.has(own.id) && !S.setPiece) {
-    for (const m of moveTargets(own)) {
-      if (m.cost > S.energy) continue;
-      opts.push({ ev: holdValue(m, t), cost: m.cost, run: moveAct(own, m) });
-    }
-  }
-  return opts;
+// (G) pilih acak di antara opsi yang nilainya hampir sama dengan yang terbaik
+function pickVaried(list, score) {
+  if (!list.length) return null;
+  const top = Math.max(...list.map(score));
+  const near = list.filter(o => score(o) >= top - botLevel.variety);
+  const w = near.map(o => score(o) - (top - botLevel.variety) + 0.1);
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < near.length; i++) { r -= w[i]; if (r <= 0) return near[i]; }
+  return near[near.length - 1];
 }
 
-// Posisi ideal tiap pemain (tanpa bola)
-function desiredCell(p, t, attacking) {
-  const dir = dirOf(t), ball = S.ball;
-  const ownBoxX = sideOf(t) === 'left' ? 2 : CONFIG.COLS - 1;
-  const oppBoxX = sideOf(t) === 'left' ? CONFIG.COLS - 1 : 2;
-  const lane = p.num === 2 || p.num === 7 ? -1 : 1;
-  if (p.role === 'GK') return { x: p.x, y: clamp(ball.y, 1, 3) };
-  if (attacking) {
-    if (p.role === 'FW') return { x: oppBoxX, y: 2 };
-    if (p.role === 'MF') return { x: clamp(ball.x + 2 * dir, 2, CONFIG.COLS - 1), y: 2 + lane };
-    return { x: clamp(ball.x - 3 * dir, 2, CONFIG.COLS - 1), y: 2 + lane };
-  }
-  const h = holder();
-  if (p.role === 'FW' && h) return { x: clamp(h.x + dir, 1, CONFIG.COLS), y: h.y };     // tekan pembawa bola
-  if (p.role === 'MF') {
-    // jaga lawan terdekat (selain pembawa bola), dari sisi gawang sendiri
-    const opp = S.players.filter(q => q.team !== t && q.role !== 'GK' && q !== h)
-      .sort((a, b) => cheb(a, p) - cheb(b, p))[0];
-    if (opp) return { x: clamp(opp.x - dir, 2, CONFIG.COLS - 1), y: opp.y };
-  }
-  // bek: di antara bola dan gawang sendiri
-  const x = sideOf(t) === 'left' ? Math.max(ownBoxX, ball.x - 2) : Math.min(ownBoxX, ball.x + 2);
-  return { x, y: clamp(ball.y + lane, 0, CONFIG.ROWS - 1) };
+// (A) kiper kembali ke tengah gawang bila tidak sedang menghadapi ancaman
+function gkCenterMove(t) {
+  const gk = S.players.find(p => p.team === t && p.role === 'GK');
+  if (!gk || gk.y === 2 || S.used.has(gk.id)) return null;
+  const m = moveTargets(gk).find(c => c.y === 2 && !c.steal && c.cost <= S.energy);
+  return m ? moveAct(gk, m) : null;
 }
 
-// Gerakan tanpa bola terbaik (mengatur posisi menyerang / bertahan)
-function bestPositionMove(t, own, reserve) {
-  const attacking = !!own;
+// (F) gerakan tanpa bola saat menyerang: hanya jika membuka operan yang lebih bernilai
+function bestSupportMove(own) {
+  const t = own.team;
+  const baseline = holderValue(own, S.energy, 1, S.used);
   let best = null;
   for (const p of S.players) {
-    if (p.team !== t || p === own || S.used.has(p.id)) continue;
-    const T = desiredCell(p, t, attacking);
-    const d0 = Math.hypot(p.x - T.x, p.y - T.y);
+    if (p.team !== t || p === own || p.role === 'GK' || S.used.has(p.id)) continue;
     for (const m of moveTargets(p)) {
-      if (m.steal || m.cost > S.energy - reserve) continue;
-      const d1 = Math.hypot(m.x - T.x, m.y - T.y);
-      let gain = d0 - d1;
-      if (attacking) gain += 0.8 * (pressure(p, t) - pressure(m, t)); // cari ruang terbuka
-      const score = gain - 0.15 * m.cost;
-      if (gain >= 0.7 && (!best || score > best.score)) best = { score, run: moveAct(p, m) };
+      if (m.steal || m.cost > S.energy - 2) continue;
+      const E = S.energy - m.cost;
+      const v = withState(() => {
+        p.x = m.x; p.y = m.y;
+        let bv = -Infinity;
+        for (const [ox, oy] of [[0.5, 0.5], [0.3, 0.3], [0.7, 0.7]]) {
+          const plan = planKick(own, { x: m.x + ox, y: m.y + oy }, 0);
+          if (!plan || plan.receiver !== p || plan.cost > E) continue;
+          const lose = plan.blockers[0] ? plan.path[plan.blockers[0].at] : plan.path[Math.floor(plan.path.length / 2)];
+          const g = withState(() => { S.ball = { x: m.x, y: m.y }; return holderValue(p, E - plan.cost, 0, S.used); });
+          bv = Math.max(bv, plan.success * g + (1 - plan.success) * lossValue(lose, t));
+        }
+        return bv;
+      });
+      const score = v - BOT.COST_W * m.cost - baseline;
+      if (score > BOT.MARGIN && (!best || score > best.score)) best = { score, p, m };
     }
   }
-  return best && best.run;
+  return best ? moveAct(best.p, best.m) : null;
 }
 
 function botDecide() {
   const t = S.turn, h = holder();
   const own = h && h.team === t ? h : null;
+
   if (own) {
-    const opts = holderOptions(own);
-    const stay = S.setPiece ? -Infinity : holdValue(own, t);
-    let best = null;
-    for (const o of opts) if (!best || o.ev - BOT.COST_W * o.cost > best.ev - BOT.COST_W * best.cost) best = o;
-    if (best && best.ev - BOT.COST_W * best.cost > stay + BOT.MARGIN) return best.run;
-    if (S.setPiece && best) return best.run;
-  } else if (!h) {
-    // bola lepas: pemain dengan biaya termurah mengambil bola
+    // menyerang: pilih aksi pembawa bola dengan melihat 2 langkah ke depan
+    const opts = holderOptions(own, S.energy, botLevel.depth, S.used, botLevel.space);
+    const stay = S.setPiece ? -Infinity : safeValue(own) - BOT.TEMPO * Math.min(BOT.TEMPO_MAX, botPassive[t]);
+    const score = o => o.ev - BOT.COST_W * o.cost;
+    // level rendah: kadang salah pilih (acak dari 4 aksi teratas)
+    if (opts.length && Math.random() < botLevel.mistake) {
+      const top = opts.slice().sort((a, b) => score(b) - score(a)).slice(0, 4);
+      return top[Math.floor(Math.random() * top.length)].run;
+    }
+    const good = opts.filter(o => S.setPiece || score(o) > stay + BOT.MARGIN);
+    const pick = pickVaried(good.length ? good : (S.setPiece ? opts : []), score);
+    if (pick) return pick.run;
+    // tidak ada aksi bola yang lebih baik: buka ruang operan, lalu rapikan kiper
+    return (botLevel.support && bestSupportMove(own)) || gkCenterMove(t);
+  }
+
+  if (!h) {
+    // bola lepas: ambil jika terjangkau (pilih pemain yang hasil akhirnya paling bernilai)
     let grab = null;
     for (const p of S.players) {
       if (p.team !== t || S.used.has(p.id)) continue;
-      for (const m of moveTargets(p))
-        if (m.x === S.ball.x && m.y === S.ball.y && m.cost <= S.energy && (!grab || m.cost < grab.m.cost)) grab = { p, m };
+      for (const m of moveTargets(p)) {
+        if (m.x !== S.ball.x || m.y !== S.ball.y || m.cost > S.energy) continue;
+        const v = withState(() => { p.x = m.x; p.y = m.y; return holderValue(p, S.energy - m.cost, 0, new Set([...S.used, p.id])); }) - BOT.COST_W * m.cost;
+        if (!grab || v > grab.v) grab = { p, m, v };
+      }
     }
     if (grab) return moveAct(grab.p, grab.m);
-  } else {
-    // lawan membawa bola: rebut jika sepadan dengan risiko pelanggaran
+  }
+
+  // bertahan: rebut bola jika sepadan, atau gerakan yang paling menurunkan ancaman
+  const { base, best } = bestDefenseMove(t);
+  const idle = -base * BOT.GOAL_V;
+  let steal = null;
+  if (h && h.team !== t) {
     const box = inBox(h.x, h.y, sideOf(t));
-    const ev = (1 - CONFIG.FOUL_CHANCE) * (3 + 0.5 * holdValue(h, h.team)) + CONFIG.FOUL_CHANCE * (box ? -18 : -2);
-    if (ev > 0) {
-      let st = null;
-      for (const p of S.players) {
-        if (p.team !== t || S.used.has(p.id)) continue;
-        for (const m of moveTargets(p)) if (m.steal && m.cost <= S.energy && (!st || m.cost < st.m.cost)) st = { p, m };
+    for (const p of S.players) {
+      if (p.team !== t || S.used.has(p.id)) continue;
+      for (const m of moveTargets(p)) {
+        if (!m.steal || m.cost > S.energy) continue;
+        const won = withState(() => {
+          m.steal.x = m.push.x; m.steal.y = m.push.y; p.x = m.x; p.y = m.y;
+          return holderValue(p, S.energy - m.cost, 0, new Set([...S.used, p.id]));
+        });
+        const ev = (1 - CONFIG.FOUL_CHANCE) * won + CONFIG.FOUL_CHANCE * (box ? -0.8 * BOT.GOAL_V : -2 + idle * 0.5) - BOT.COST_W * m.cost;
+        if (!steal || ev > steal.ev) steal = { ev, p, m };
       }
-      if (st) return moveAct(st.p, st.m);
     }
   }
-  // sisihkan energi untuk tendangan jika masih membawa bola
-  const reserve = own ? CONFIG.COST_SHOT : 0;
-  const ball = !h ? { x: S.ball.x, y: S.ball.y } : null;
-  if (ball) {
-    // bola lepas tapi belum terjangkau: pemain terdekat mendekat
-    let best = null;
+  const moveVal = best ? idle + best.score : idle;
+  if (steal && steal.ev > Math.max(idle, moveVal) + BOT.MARGIN) return moveAct(steal.p, steal.m);
+  if (best && best.score >= botLevel.defMin && botDefMoves < botLevel.defMoves && Math.random() >= botLevel.mistake) {
+    botDefMoves++;
+    return moveAct(best.p, best.m);
+  }
+
+  if (!h) {
+    // bola lepas belum terjangkau: pemain terdekat mendekat
+    const ball = { x: S.ball.x, y: S.ball.y };
+    let ch = null;
     for (const p of S.players) {
       if (p.team !== t || S.used.has(p.id) || p.role === 'GK') continue;
       for (const m of moveTargets(p)) {
         if (m.cost > S.energy) continue;
         const gain = cheb(p, ball) - cheb(m, ball);
-        if (gain > 0 && (!best || gain - 0.1 * m.cost > best.s)) best = { s: gain - 0.1 * m.cost, run: moveAct(p, m) };
+        if (gain > 0 && (!ch || gain - 0.1 * m.cost > ch.s)) ch = { s: gain - 0.1 * m.cost, run: moveAct(p, m) };
       }
     }
-    if (best) return best.run;
+    if (ch) return ch.run;
   }
-  return bestPositionMove(t, own, reserve);
+  // tidak ada ancaman berarti: kiper kembali ke tengah
+  return base < 0.05 ? gkCenterMove(t) : null;
 }
 
 async function runBot() {
@@ -1799,13 +1990,21 @@ async function runBot() {
   const id = S.turnId;
   const alive = () => S.turnId === id && S.phase === 'play' && S.bots.has(S.turn);
   botTouched = new Set();
+  const team = S.turn;
+  const h0 = holder();
+  const start = h0 && h0.team === team ? progress(h0.x, team) : null;
   try {
     await botWait(BOT.STEP_MS);
-    for (let i = 0; i < 40 && alive(); i++) {
+    botDefMoves = 0;
+    for (let i = 0; i < botLevel.maxActs && alive(); i++) {
       const hh = holder();
       if (hh && hh.team === S.turn) botTouched.add(hh.id);
       const act = botDecide();
       if (!act) {
+        // catat giliran pasif: masih pegang bola tapi tidak maju
+        const h1 = holder();
+        if (start !== null && h1 && h1.team === team && progress(h1.x, team) <= start + 0.01) botPassive[team]++;
+        else botPassive[team] = 0;
         addLog(`${teamName(S.turn)} mengakhiri giliran`, S.turn);
         endTurn();
         break;
@@ -1813,6 +2012,8 @@ async function runBot() {
       await act();
       await botWait(BOT.STEP_MS);
     }
+    // batas aksi per giliran tercapai: akhiri giliran
+    if (alive()) { addLog(`${teamName(S.turn)} mengakhiri giliran`, S.turn); endTurn(); }
   } finally {
     botBusy = false;
   }
