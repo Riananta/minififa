@@ -52,6 +52,13 @@ const League = (() => {
     acm: { 1: 'Maignan',    2: 'Tomori',      4: 'Gabbia',       7: 'Pulisic',     11: 'Modrić',     9: 'Leão' },
   };
   const CUP_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
+  // tingkat kesulitan komputer lawan
+  const LEVELS = [
+    ['easy', 'Easy', 'Komputer sering salah langkah & jarang bertahan rapat'],
+    ['medium', 'Medium', 'Komputer cukup cerdas, sesekali lengah'],
+    ['hard', 'Hard', 'Komputer bermain penuh: bertahan rapat & membaca peluang'],
+  ];
+  const levelName = k => (LEVELS.find(l => l[0] === k) || LEVELS[2])[1];
   // peluang mencetak gol / memberi assist per posisi (untuk pertandingan yang diundi)
   const GOAL_W = { 9: 42, 7: 20, 11: 20, 2: 6, 4: 6, 1: 0 };
   const ASSIST_W = { 9: 18, 7: 30, 11: 30, 2: 11, 4: 9, 1: 2 };
@@ -76,6 +83,8 @@ const League = (() => {
     if (save && save.v !== 1) save = null;
     // karier lama (sebelum ada nama pemain): lengkapi daftar pemain
     if (save) for (const c of save.clubs) if (!c.squad) c.squad = { ...SQUADS[c.id] };
+    // karier lama (sebelum ada tingkat kesulitan) tetap Hard seperti sebelumnya
+    if (save && !save.difficulty) save.difficulty = 'hard';
     return save;
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* abaikan */ } }
@@ -127,15 +136,28 @@ const League = (() => {
     showModal(`
       <h2>Pilih Tim</h2>
       <p>Musim ${seasonName(START_YEAR)} · 16 tim · liga kandang-tandang + piala</p>
+      <div class="lvl-pick">
+        <span>Tingkat kesulitan:</span>
+        <div class="seg">${LEVELS.map(([k, n]) => `<button type="button" data-lvl="${k}" class="${k === 'medium' ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <small id="lvlDesc">${LEVELS[1][2]}</small>
+      </div>
       <div class="club-grid">
         ${list.map(c => `<button class="club-btn" data-club="${c.id}">
           <span class="club-dot" style="background:${c.color}"></span>
           <b>${h(c.name)}</b><small>${stars(c.rating)}</small></button>`).join('')}
       </div>
       <div class="btns"><button class="btn ghost" id="btnPickBack">← Kembali</button></div>`);
+    let lvl = 'medium';
+    document.querySelectorAll('[data-lvl]').forEach(b => {
+      b.onclick = () => {
+        lvl = b.dataset.lvl;
+        document.querySelectorAll('[data-lvl]').forEach(x => x.classList.toggle('on', x === b));
+        el('lvlDesc').textContent = LEVELS.find(l => l[0] === lvl)[2];
+      };
+    });
     document.querySelectorAll('[data-club]').forEach(b => {
       b.onclick = () => {
-        save = { v: 1, user: b.dataset.club, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] } })), history: [] };
+        save = { v: 1, user: b.dataset.club, difficulty: lvl, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] } })), history: [] };
         newSeason(START_YEAR);
         persist();
         hideModal();
@@ -252,6 +274,7 @@ const League = (() => {
       ...k,
       bots: how === 'watch' ? ['home', 'away'] : [userSide === 'home' ? 'away' : 'home'],
       knockout: ko,
+      level: save.difficulty,
       label: eventTitle(ev),
       onEnd: async (hs, as, events) => {
         const so = ko && hs === as ? shootout() : null;
@@ -421,7 +444,12 @@ const League = (() => {
           <span class="club-dot big" style="background:${me.color}"></span>
           <div><h1>${h(me.name)}</h1><small>Liga Mini Eropa · Musim ${seasonName(save.year)}</small></div>
         </div>
-        <button class="btn ghost" id="hubMenu">🏠 Menu Utama</button>
+        <div class="hub-actions">
+          <label class="lvl-select">🎚️ Tingkat
+            <select id="hubLevel">${LEVELS.map(([k, n]) => `<option value="${k}" ${k === save.difficulty ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          </label>
+          <button class="btn ghost" id="hubMenu">🏠 Menu Utama</button>
+        </div>
       </header>
       <section class="next-card">${nextCard(ev, um)}</section>
       <nav class="tabs">
@@ -430,6 +458,7 @@ const League = (() => {
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
     el('hubMenu').onclick = () => showMainMenu();
+    el('hubLevel').onchange = e => { save.difficulty = e.target.value; persist(); };
     hub.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; showHub(); }; });
     hub.querySelectorAll('[data-play]').forEach(b => { b.onclick = () => playUserMatch(b.dataset.play); });
     const sim = el('btnSimEvent');

@@ -1436,6 +1436,7 @@ function startMatch(opt) {
   S.sentOff = new Set();
   S.paused = false;
   S.bots = new Set(opt.bots);
+  setBotLevel(opt.level);
   S.speed = S.bots.size === 2 ? 3 : 1;
   S.match = { onEnd: opt.onEnd, knockout: !!opt.knockout };
   $('log').innerHTML = '';
@@ -1587,6 +1588,7 @@ function showSetup() {
     newStats();
     S.vs = cfg.vs;
     S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
+    setBotLevel('hard');
     S.match = null;
     S.speed = 1;
     applyTeamColors();
@@ -1606,14 +1608,29 @@ const BOT = {
   GOAL_V: 40,         // nilai sebuah gol
   COST_W: 0.05,       // penalti kecil per energi
   MARGIN: 0.4,        // aksi harus lebih baik dari diam minimal segini
-  VARIETY: 0.6,       // (G) pilih acak di antara aksi yang nilainya dalam selisih ini dari yang terbaik
-  DEF_MIN: 0.6,       // gerakan bertahan minimal menurunkan ancaman senilai ini (satuan nilai)
   SPACE_MAX: 8,       // jarak maksimal tendangan ke ruang kosong
   SHOT_ROWS: [1.25, 1.5, 1.75, 2.5, 3.25, 3.5, 3.75], // titik bidik di mulut gawang
   TEMPO: 1.8,         // tiap giliran pasif (pegang bola tanpa maju), "diam" makin tidak menarik
   TEMPO_MAX: 4,
-  PRESS: 1.2,         // nilai tambah gerakan bertahan yang membuat pembawa bola lawan bisa direbut
 };
+// Tingkat kesulitan komputer. Hard = kemampuan penuh; Medium & Easy sengaja dibatasi.
+//  depth    : berpikir berapa langkah ke depan (1 = rencana 2 langkah)
+//  space    : boleh umpan ke ruang kosong
+//  support  : pemain tanpa bola bergerak membuka ruang operan
+//  risk     : seberapa peka terhadap risiko bola direbut (0..1)
+//  defMoves : maksimal gerakan bertahan per giliran
+//  mistake  : peluang salah memilih aksi tiap langkah
+//  variety  : selisih nilai yang masih dianggap "sama bagus" (makin besar makin acak)
+//  press    : nilai tambah pressing saat bertahan
+//  maxActs  : maksimal aksi per giliran
+const BOT_LEVELS = {
+  easy:   { label: 'Easy',   depth: 0, space: false, support: false, risk: 0.35, defMoves: 1,  mistake: 0.35, variety: 2.5, press: 0,   defMin: 2.0, maxActs: 4 },
+  medium: { label: 'Medium', depth: 0, space: true,  support: true,  risk: 0.75, defMoves: 3,  mistake: 0.15, variety: 1.2, press: 0.6, defMin: 1.0, maxActs: 8 },
+  hard:   { label: 'Hard',   depth: 1, space: true,  support: true,  risk: 1,    defMoves: 99, mistake: 0,    variety: 0.6, press: 1.2, defMin: 0.6, maxActs: 40 },
+};
+let botLevel = BOT_LEVELS.hard;
+function setBotLevel(key) { botLevel = BOT_LEVELS[key] || BOT_LEVELS.hard; }
+let botDefMoves = 0; // gerakan bertahan yang sudah dipakai giliran ini
 let botBusy = false;
 const botPassive = { home: 0, away: 0 }; // jumlah giliran beruntun tim memegang bola tanpa kemajuan
 let botTouched = new Set(); // pemain bot yang sudah memegang bola giliran ini
@@ -1653,7 +1670,9 @@ function safeValue(h) {
   const v = holdValue(h, h.team);
   if (!canBeStolen(h)) return v;
   const ok = CONFIG.FOUL_CHANCE; // rebutan jadi pelanggaran = bola tetap milik kita
-  return ok * v + (1 - ok) * lossValue(h, h.team);
+  const risky = ok * v + (1 - ok) * lossValue(h, h.team);
+  return v - botLevel.risk * (v - risky); // level rendah kurang peka risiko
+
 }
 
 // Tembakan terbaik dari posisi h (vary = pilih acak di antara yang hampir sama bagusnya)
@@ -1813,7 +1832,7 @@ function bestDefenseMove(t) {
         press = !could && h && h.team !== t && h.role !== 'GK' && moveTargets(p).some(x => x.steal);
         return threat(t);
       });
-      const score = (base - th) * BOT.GOAL_V - BOT.COST_W * m.cost + (press ? BOT.PRESS : 0);
+      const score = (base - th) * BOT.GOAL_V - BOT.COST_W * m.cost + (press ? botLevel.press : 0);
       if (!best || score > best.score) best = { score, p, m };
     }
   }
@@ -1843,8 +1862,8 @@ function moveAct(p, t) {
 function pickVaried(list, score) {
   if (!list.length) return null;
   const top = Math.max(...list.map(score));
-  const near = list.filter(o => score(o) >= top - BOT.VARIETY);
-  const w = near.map(o => score(o) - (top - BOT.VARIETY) + 0.1);
+  const near = list.filter(o => score(o) >= top - botLevel.variety);
+  const w = near.map(o => score(o) - (top - botLevel.variety) + 0.1);
   let r = Math.random() * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < near.length; i++) { r -= w[i]; if (r <= 0) return near[i]; }
   return near[near.length - 1];
@@ -1893,14 +1912,19 @@ function botDecide() {
 
   if (own) {
     // menyerang: pilih aksi pembawa bola dengan melihat 2 langkah ke depan
-    const opts = holderOptions(own, S.energy, 1, S.used, true);
+    const opts = holderOptions(own, S.energy, botLevel.depth, S.used, botLevel.space);
     const stay = S.setPiece ? -Infinity : safeValue(own) - BOT.TEMPO * Math.min(BOT.TEMPO_MAX, botPassive[t]);
     const score = o => o.ev - BOT.COST_W * o.cost;
+    // level rendah: kadang salah pilih (acak dari 4 aksi teratas)
+    if (opts.length && Math.random() < botLevel.mistake) {
+      const top = opts.slice().sort((a, b) => score(b) - score(a)).slice(0, 4);
+      return top[Math.floor(Math.random() * top.length)].run;
+    }
     const good = opts.filter(o => S.setPiece || score(o) > stay + BOT.MARGIN);
     const pick = pickVaried(good.length ? good : (S.setPiece ? opts : []), score);
     if (pick) return pick.run;
     // tidak ada aksi bola yang lebih baik: buka ruang operan, lalu rapikan kiper
-    return bestSupportMove(own) || gkCenterMove(t);
+    return (botLevel.support && bestSupportMove(own)) || gkCenterMove(t);
   }
 
   if (!h) {
@@ -1938,7 +1962,10 @@ function botDecide() {
   }
   const moveVal = best ? idle + best.score : idle;
   if (steal && steal.ev > Math.max(idle, moveVal) + BOT.MARGIN) return moveAct(steal.p, steal.m);
-  if (best && best.score >= BOT.DEF_MIN) return moveAct(best.p, best.m);
+  if (best && best.score >= botLevel.defMin && botDefMoves < botLevel.defMoves && Math.random() >= botLevel.mistake) {
+    botDefMoves++;
+    return moveAct(best.p, best.m);
+  }
 
   if (!h) {
     // bola lepas belum terjangkau: pemain terdekat mendekat
@@ -1968,7 +1995,8 @@ async function runBot() {
   const start = h0 && h0.team === team ? progress(h0.x, team) : null;
   try {
     await botWait(BOT.STEP_MS);
-    for (let i = 0; i < 40 && alive(); i++) {
+    botDefMoves = 0;
+    for (let i = 0; i < botLevel.maxActs && alive(); i++) {
       const hh = holder();
       if (hh && hh.team === S.turn) botTouched.add(hh.id);
       const act = botDecide();
@@ -1984,6 +2012,8 @@ async function runBot() {
       await act();
       await botWait(BOT.STEP_MS);
     }
+    // batas aksi per giliran tercapai: akhiri giliran
+    if (alive()) { addLog(`${teamName(S.turn)} mengakhiri giliran`, S.turn); endTurn(); }
   } finally {
     botBusy = false;
   }
