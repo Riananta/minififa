@@ -609,3 +609,43 @@ aside { display: grid; gap: 16px; }
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
   padding: 6px 8px; font: inherit; font-weight: 700;
 }
+
+/* rating pemain */
+.rt { display: inline-block; min-width: 34px; text-align: center; padding: 1px 6px; border-radius: 6px; font-weight: 900; font-size: 12px; font-variant-numeric: tabular-nums; color: #0b1220; }
+.rt.r-top { background: #22c55e; } .rt.r-good { background: #a3e635; } .rt.r-ok { background: #facc15; } .rt.r-bad { background: #f87171; }
+.rt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rt-team { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; margin-bottom: 4px; }
+.rp-dot.sm { width: 12px; height: 12px; border-width: 1px; }
+.rt-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 6px; font-size: 13px; padding: 3px 6px; border-radius: 6px; }
+.rt-row:nth-child(odd) { background: #0a1120; }
+.rt-row.mom { outline: 1px solid rgba(251,191,36,.6); }
+.rt-pos { font-size: 10px; font-weight: 800; color: var(--muted); }
+.rt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) { .rt-grid { grid-template-columns: 1fr; } }
+
+/* Liga Komputer: daftar laga untuk ditonton */
+.hub-ic { font-size: 34px; }
+.cpu-list { display: grid; gap: 6px; }
+.cpu-m { display: grid; grid-template-columns: 1fr 70px 1fr 92px; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: #0a1120; font-size: 14px; }
+.cpu-m.done { opacity: .75; }
+.cpu-m .cpu-ok { text-align: center; color: #22c55e; font-weight: 900; }
+.btn.sm { padding: 5px 10px; font-size: 13px; }
+@media (max-width: 560px) { .cpu-m { grid-template-columns: 1fr 56px 1fr; } .cpu-m .btn, .cpu-m .cpu-ok { grid-column: 1 / -1; } }
+
+/* penghargaan akhir musim */
+.aw-h { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; text-align: left; }
+.aw-sub { margin: 10px 0 6px; font-weight: 800; font-size: 13px; }
+.aw-season { margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.pots { background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(251,191,36,.04)); border: 1px solid rgba(251,191,36,.5); border-radius: 12px; padding: 10px 12px; margin: 8px 0; text-align: left; }
+.pots-t { font-size: 12px; font-weight: 900; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; }
+.pots-n { display: flex; align-items: center; gap: 8px; font-size: 18px; margin: 4px 0; flex-wrap: wrap; }
+.pots-n small { color: var(--muted); font-size: 13px; }
+.pots-s { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.pots-s span { background: #0a1120; border: 1px solid var(--border); border-radius: 99px; padding: 2px 8px; color: var(--muted); }
+.pots-s b { color: var(--text); }
+.dt { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: linear-gradient(180deg, #1f6b35, #17532a); border: 1px solid #2c7a43; }
+.dt-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.dt-p { display: grid; justify-items: center; gap: 2px; min-width: 96px; padding: 6px 8px; border-radius: 10px; background: rgba(0,0,0,.28); text-align: center; }
+.dt-p b { font-size: 13px; }
+.dt-p small { font-size: 11px; color: #cbd5e1; }
+.dt-p .club-dot { width: 18px; height: 18px; }
