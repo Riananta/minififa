@@ -275,31 +275,61 @@ const League = (() => {
     save.news.unshift(`${club(c.id).name} menjual ${p.name} (${p.tier}) ke toko seharga ${fmtM(sellPrice(p))}`);
     return true;
   }
-  // Transfer klub komputer: tingkatkan pemain inti terlemah bila mampu, lalu penuhi skuad minimal
+  // Transfer klub komputer (tidak selalu terjadi; ada unsur acak):
+  // 1) upgrade pemain inti bila ada yang lebih bagus & terjangkau (85%)
+  // 2) kadang menjual cadangan terlemah (30%)
+  // 3) kadang menambah cadangan dengan sebagian uang (50%)
+  // 4) selalu penuhi skuad minimal
+  const AI_T = { UPGRADE: 0.85, SELL: 0.3, DEPTH: 0.5, DEPTH_SPEND: 0.6 };
   function aiTransfers(c) {
     const cheapest = () => Math.min(...freeAgents().map(price), 99);
     const reserve = extra => Math.max(0, minSquad() - (c.roster.length + extra)) * cheapest();
-    for (let tries = 0; tries < 2; tries++) {
-      let weak = null;
-      for (const n of NUMS) { const t = TV[c.tiers[n]]; if (!weak || t < weak.t) weak = { n, t }; }
-      const role = ROLE_OF[weak.n];
-      if (c.roster.length >= MARKET.MAX_SQUAD) {
-        const bench = c.roster.filter(id => canSell(c, id)).map(P).sort((a, b) => TV[a.tier] - TV[b.tier]);
-        if (bench[0]) sell(c, bench[0].id); else break;
+    const pickTop = (opts, k) => { const top = opts.filter(p => TV[p.tier] === TV[opts[0].tier]); return top[Math.floor(Math.random() * Math.min(k, top.length))]; };
+    const benchOf = () => c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P);
+    // 1) upgrade pemain inti (posisi terlemah dulu)
+    if (Math.random() < AI_T.UPGRADE) {
+      for (let tries = 0; tries < 2; tries++) {
+        const slots = NUMS.map(n => ({ n, t: TV[c.tiers[n]] })).sort((a, b) => a.t - b.t);
+        let done = false;
+        for (const { n, t } of slots) {
+          if (c.roster.length >= MARKET.MAX_SQUAD) {
+            const weak = benchOf().filter(p => canSell(c, p.id)).sort((a, b) => TV[a.tier] - TV[b.tier])[0];
+            if (!weak) break;
+            sell(c, weak.id);
+          }
+          const opts = freeAgents().filter(p => p.role === ROLE_OF[n] && TV[p.tier] > t && price(p) <= c.money - reserve(1))
+            .sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
+          if (!opts.length) continue;
+          buy(c, pickTop(opts, 3).id);
+          autoLineup(c);
+          done = true;
+          break;
+        }
+        if (!done) break;
       }
-      const opts = freeAgents().filter(p => p.role === role && TV[p.tier] > weak.t && price(p) <= c.money - reserve(1))
-        .sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
-      if (!opts.length) break;
-      const top = opts.filter(p => TV[p.tier] === TV[opts[0].tier]);
-      buy(c, top[Math.floor(Math.random() * Math.min(3, top.length))].id);
-      autoLineup(c);
     }
+    // 2) kadang menjual cadangan terlemah (untuk menambah uang)
+    if (c.roster.length > minSquad() && Math.random() < AI_T.SELL) {
+      const weak = benchOf().filter(p => canSell(c, p.id)).sort((a, b) => TV[a.tier] - TV[b.tier] || price(a) - price(b))[0];
+      if (weak) sell(c, weak.id);
+    }
+    // 3) kadang menambah cadangan (posisi yang paling sedikit cadangannya)
+    if (c.roster.length < MARKET.MAX_SQUAD && Math.random() < AI_T.DEPTH) {
+      const cnt = { GK: 0, DF: 0, MF: 0, FW: 0 };
+      for (const p of benchOf()) cnt[p.role]++;
+      const need = Object.keys(cnt).sort((a, b) => cnt[a] - cnt[b] || Math.random() - 0.5);
+      const budget = c.money * AI_T.DEPTH_SPEND;
+      for (const role of need) {
+        const opts = freeAgents().filter(p => p.role === role && price(p) <= budget).sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
+        if (opts.length) { buy(c, pickTop(opts, 4).id); break; }
+      }
+    }
+    // 4) penuhi skuad minimal
     let guard = 0;
     while (c.roster.length < minSquad() && guard++ < 10) {
       const opts = freeAgents().filter(p => price(p) <= c.money - reserve(1)).sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
       if (!opts.length) break;
-      const top = opts.filter(p => TV[p.tier] === TV[opts[0].tier]);
-      buy(c, top[Math.floor(Math.random() * Math.min(4, top.length))].id);
+      buy(c, pickTop(opts, 4).id);
     }
     autoLineup(c);
   }
