@@ -682,3 +682,28 @@ aside { display: grid; gap: 16px; }
 .audio-ctl button:hover { border-color: var(--gold); }
 .audio-ctl button.off { opacity: .45; position: relative; }
 .audio-ctl button.off::after { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 2px; background: #f87171; transform: rotate(-45deg); }
+
+/* ============ PASAR TRANSFER ============ */
+.money { margin-left: 8px; padding: 6px 12px; border-radius: 99px; background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.5); font-weight: 800; color: var(--gold); white-space: nowrap; }
+.win-stat { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.win-stat b { color: var(--text); }
+.win-issues { margin: 0; padding-left: 18px; color: #fca5a5; font-size: 14px; }
+.nc-sub.ok { color: #86efac; }
+.my-head, .shop-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+.my-head b, .shop-head b { color: var(--text); }
+.my-head .btn { margin-left: auto; }
+.my-tbl td, .my-tbl th, .shop-tbl td, .shop-tbl th { padding: 5px 6px; font-size: 13px; }
+.my-tbl select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 8px; font: inherit; font-weight: 700; max-width: 230px;
+}
+.warn { color: #fbbf24; font-weight: 700; }
+.ledger { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.ledger div { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; border-radius: 8px; background: #0a1120; font-size: 13px; }
+.ledger .pos { color: #86efac; } .ledger .neg { color: #fca5a5; }
+.news { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; font-size: 13px; }
+.news div { padding: 5px 8px; border-radius: 8px; background: #0a1120; }
+.fin-box { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.4); text-align: left; }
+.fin-box small { color: var(--muted); }
+.bench-row td { opacity: .8; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
