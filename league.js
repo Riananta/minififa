@@ -561,6 +561,7 @@ const League = (() => {
     }
     m.goals = goals || [...genGoals(m.h, hs), ...genGoals(m.a, as)];
     m.ratings = ratings ? { h: ratings.home, a: ratings.away } : genRatings(m);
+    if (ratings && ratings.byPid && isMarket()) m.pr = { h: ratings.byPid.home, a: ratings.byPid.away };
     if (ev.type === 'cup') {
       if (hs === as) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
       m.winner = hs > as || (hs === as && m.ph > m.pa) ? m.h : m.a;
@@ -596,8 +597,14 @@ const League = (() => {
     const H = club(m.h), A = club(m.a);
     let ac = A.color;
     if (colorDist(H.color, ac) < 120) ac = colorDist(H.color, A.alt) >= 120 ? A.alt : '#f97316';
-    return { home: { name: H.name, color: H.color, squad: H.squad, tiers: H.tiers, traits: H.traits },
-             away: { name: A.name, color: ac, squad: A.squad, tiers: A.tiers, traits: A.traits } };
+    const extra = c => {
+      if (!isMarket() || !c.lineup) return {};
+      const inXI = id => NUMS.some(n => c.lineup[n] === id);
+      return { pids: { ...c.lineup }, bench: c.roster.filter(id => !inXI(id)).map(P)
+        .map(p => ({ pid: p.id, name: p.name, role: p.role, tier: p.tier, traits: p.traits })) };
+    };
+    return { home: { name: H.name, color: H.color, squad: H.squad, tiers: H.tiers, traits: H.traits, ...extra(H) },
+             away: { name: A.name, color: ac, squad: A.squad, tiers: A.tiers, traits: A.traits, ...extra(A) } };
   }
 
   async function playUserMatch(how) {
@@ -620,6 +627,7 @@ const League = (() => {
       bots: [userSide === 'home' ? 'away' : 'home'],
       knockout: ko,
       level: save.difficulty,
+      subs: isMarket(),
       label: eventTitle(ev),
       onEnd: (hs, as, events, ratings) => recordEngineResult(ev, m, hs, as, events, ratings, finishEvent),
     });
@@ -631,7 +639,8 @@ const League = (() => {
     if (so) await showShootout(m, hs, as, so);
     // gol dari mesin game: home/away -> klub; gol bunuh diri tanpa pencetak
     const goals = (events || []).filter(e => e.type === 'goal')
-      .map(e => ({ c: e.team === 'home' ? m.h : m.a, s: e.scorer, a: e.assist, og: e.own || undefined }));
+      .map(e => ({ c: e.team === 'home' ? m.h : m.a, s: e.scorer, a: e.assist, og: e.own || undefined,
+        sp: e.scorerPid || undefined, ap: e.assistPid || undefined }));
     setResult(ev, m, hs, as, so, goals, ratings);
     done();
   }
@@ -750,17 +759,18 @@ const League = (() => {
     if (pid && P(pid)) return P(pid).name;
     return (club(cid).squad && club(cid).squad[num]) || `#${num}`;
   };
+  const gname = (g, key, m) => { const pid = g[key === 's' ? 'sp' : 'ap']; return pid && P(pid) ? P(pid).name : pname(g.c, g[key], m); };
   const goalLine = (g, m) => g.og ? `${h(club(g.c).name)}: gol bunuh diri`
-    : `${h(pname(g.c, g.s, m))}${g.a ? ` <small>(assist ${h(pname(g.c, g.a, m))})</small>` : ''}`;
+    : `${h(gname(g, 's', m))}${g.a ? ` <small>(assist ${h(gname(g, 'a', m))})</small>` : ''}`;
 
   // Statistik pemain sepanjang musim (liga): penampilan, rata-rata rating, gol, assist, clean sheet
   function seasonPlayers() {
     const map = new Map();
     let cur = null; // laga yang sedang dihitung
-    const get = (cid, num) => {
-      const pid = pidAt(cur, cid, num);
+    const get = (cid, num, direct) => {
+      const pid = direct || pidAt(cur, cid, num);
       const k = pid || cid + ':' + num;
-      if (!map.has(k)) map.set(k, { cid, num, pid, role: pid ? P(pid).role : ROLE_OF[num], name: pname(cid, num, cur), apps: 0, sum: 0, g: 0, a: 0, cs: 0 });
+      if (!map.has(k)) map.set(k, { cid, num, pid, role: pid ? P(pid).role : ROLE_OF[num], name: pid ? P(pid).name : pname(cid, num, cur), apps: 0, sum: 0, g: 0, a: 0, cs: 0 });
       return map.get(k);
     };
     for (const ev of save.events) {
@@ -770,6 +780,16 @@ const League = (() => {
         cur = m;
         if (!m.ratings) m.ratings = genRatings(m); // data lama tanpa rating
         for (const [side, cid, conc] of [['h', m.h, m.as], ['a', m.a, m.hs]]) {
+          if (m.pr) {
+            // rating per pemain (termasuk pengganti)
+            for (const [pid, r] of Object.entries(m.pr[side] || {})) {
+              if (!P(pid)) continue;
+              const p = get(cid, null, pid);
+              p.apps++; p.sum += r;
+              if (conc === 0 && (p.role === 'GK' || p.role === 'DF')) p.cs++;
+            }
+            continue;
+          }
           for (const n of NUMS) {
             const r = m.ratings[side] && m.ratings[side][n];
             if (r == null) continue;
@@ -780,8 +800,8 @@ const League = (() => {
         }
         for (const g of m.goals || []) {
           if (g.og || g.s == null) continue;
-          get(g.c, g.s).g++;
-          if (g.a != null) get(g.c, g.a).a++;
+          get(g.c, g.s, g.sp).g++;
+          if (g.a != null) get(g.c, g.a, g.ap).a++;
         }
       }
     }
@@ -855,17 +875,18 @@ const League = (() => {
   // top skor & assist liga musim ini
   function playerStats() {
     const goals = new Map(), assists = new Map();
-    const add = (map, cid, num, m) => {
-      const k = pidAt(m, cid, num) || cid + ':' + num;
-      const e = map.get(k) || { cid, num, name: pname(cid, num, m), n: 0 };
+    const add = (map, cid, num, m, direct) => {
+      const pid = direct || pidAt(m, cid, num);
+      const k = pid || cid + ':' + num;
+      const e = map.get(k) || { cid, num, name: pid && P(pid) ? P(pid).name : pname(cid, num, m), n: 0 };
       e.n++; map.set(k, e);
     };
     for (const ev of save.events) {
       if (ev.type !== 'league') continue;
       for (const m of ev.matches) for (const g of m.goals || []) {
         if (g.og || g.s == null) continue;
-        add(goals, g.c, g.s, m);
-        if (g.a != null) add(assists, g.c, g.a, m);
+        add(goals, g.c, g.s, m, g.sp);
+        if (g.a != null) add(assists, g.c, g.a, m, g.ap);
       }
     }
     const top = map => [...map.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).slice(0, 10);

@@ -43,6 +43,11 @@ const CONFIG = {
   TURN_SECONDS: 15,    // waktu per giliran
   HALF_SECONDS: 150,   // 2,5 menit per babak (total 5 menit)
   WALL_SIZE: 2,        // jumlah pemain pagar betis saat tendangan bebas
+  // Stamina & pergantian pemain (hanya liga Main Sendiri dengan skuad)
+  MAX_SUBS: 3,         // maksimal pergantian per tim
+  SUB_SECONDS: 30,     // lama jendela pergantian
+  STAM_MOVE: 1.6, STAM_STEP: 1, STAM_DRIBBLE: 1.4, STAM_KICK: 1.6, STAM_SHOT: 2.2, STAM_TACKLE: 2.2,
+  STAM_HALFTIME: 10,   // pemulihan saat turun minum
 };
 
 // Nama & warna tim diatur pemain di layar awal
@@ -84,6 +89,10 @@ const S = {
   stats: null,        // statistik tim untuk laporan pertandingan
   timeline: [],       // kejadian penting + menit (gol, kartu, penalti)
   pstats: {},         // statistik per pemain (untuk pemain terbaik)
+  stam: {},           // stamina per id pemain (0-100)
+  subsOn: false,      // pergantian & stamina aktif (liga Main Sendiri)
+  subs: { home: 0, away: 0 }, // jumlah pergantian dipakai
+  midSubsDone: false, // jendela pergantian babak 2 sudah dibuka
   turnId: 0,          // bertambah tiap giliran baru (dipakai bot)
   paused: false,
   half: 1,
@@ -143,7 +152,7 @@ function matchMinute() {
   return S.half === 2 ? m + 45 : m;
 }
 function pst(p) {
-  if (!S.pstats[p.id]) S.pstats[p.id] = { team: p.team, num: p.num, role: p.role, name: pl(p),
+  if (!S.pstats[p.id]) S.pstats[p.id] = { team: p.team, num: p.num, role: p.role, name: pl(p), pid: p.pid || null, subIn: false, subOut: false,
     g: 0, a: 0, sv: 0, tk: 0, bl: 0, sh: 0, ot: 0, ps: 0, pa: 0, ic: 0, fl: 0, yc: 0, rc: 0, og: 0 };
   return S.pstats[p.id];
 }
@@ -164,9 +173,9 @@ function playerRatings() {
     if (p.role === 'GK') r += conc === 0 ? 0.8 : -0.35 * conc;
     if (p.role === 'DF') r += conc === 0 ? 0.5 : -0.2 * conc;
     const rating = Math.round(Math.max(3, Math.min(10, r)) * 10) / 10;
-    out[p.team].push({ id, num: p.num, name: p.name, role: p.role, r: rating, sentOff: p.rc > 0 });
+    out[p.team].push({ id, num: p.num, name: p.name, role: p.role, r: rating, sentOff: p.rc > 0, pid: p.pid, subIn: p.subIn, subOut: p.subOut });
   }
-  for (const t of ['home', 'away']) out[t].sort((a, b) => RATING_ORDER.indexOf(a.num) - RATING_ORDER.indexOf(b.num));
+  for (const t of ['home', 'away']) out[t].sort((a, b) => RATING_ORDER.indexOf(a.num) - RATING_ORDER.indexOf(b.num) || a.subIn - b.subIn);
   return out;
 }
 function addTimeline(type, team, text) {
@@ -184,13 +193,16 @@ function placeFormation(kickTeam = null) {
   for (const t of ['home', 'away']) {
     const left = sideOf(t) === 'left';
     for (const f of FORMATION) {
-      if (S.sentOff.has(t + f.num)) continue; // pemain kartu merah tidak kembali
+      const pid = TEAMS[t].pids ? TEAMS[t].pids[f.num] : null;
+      const id = pid ? `${t}-${pid}` : t + f.num;
+      if (S.sentOff.has(id)) continue; // pemain kartu merah tidak kembali
       let x = (f.kx && t === kickTeam) ? f.kx : f.x;
       if (!left) x = mirrorX(x);
       const name = TEAMS[t].squad ? TEAMS[t].squad[f.num] : null;
       const tier = (TEAMS[t].tiers && TEAMS[t].tiers[f.num]) || 'B';
       const traits = (TEAMS[t].traits && TEAMS[t].traits[f.num]) || [];
-      S.players.push({ id: t + f.num, team: t, num: f.num, role: f.role, x, y: f.y, name, tier, traits });
+      const stamina = S.subsOn ? (S.stam[id] ?? 100) : null;
+      S.players.push({ id, pid, team: t, num: f.num, role: f.role, x, y: f.y, name, tier, traits, stamina });
     }
   }
 }
@@ -253,11 +265,11 @@ function moveTargets(p) {
         // bola tidak bisa direbut dari kiper
         if (q.team !== p.team && isHolder && !dribbling && q.role !== 'GK') {
           const push = pushCell(q, p);
-          if (push) res.push({ x: nx, y: ny, steal: q, push, cost: cost + CONFIG.COST_STEAL });
+          if (push) res.push({ x: nx, y: ny, steal: q, push, cost: cost + CONFIG.COST_STEAL, dist: s });
         }
         break;
       }
-      res.push({ x: nx, y: ny, cost });
+      res.push({ x: nx, y: ny, cost, dist: s });
     }
   }
   return res;
@@ -327,8 +339,16 @@ const ATTR_REF = 2; // nilai atribut pemain tier B pada keahlian posisinya
 function attr(p, a) {
   if (!p) return ATTR_REF;
   const role = ROLE_ATTR[p.role] || ROLE_ATTR.MF;
-  return TIER_VAL[p.tier || 'B'] + role[a] + ((p.traits || []).some(t => TRAITS[t] && TRAITS[t].a === a) ? 1 : 0);
+  return TIER_VAL[p.tier || 'B'] + role[a] + ((p.traits || []).some(t => TRAITS[t] && TRAITS[t].a === a) ? 1 : 0) - fatigue(p);
 }
+// lelah: stamina < 60 = atribut turun 0,5 tingkat, < 30 = turun 1 tingkat
+const fatigue = p => (p.stamina == null ? 0 : p.stamina < 30 ? 1 : p.stamina < 60 ? 0.5 : 0);
+function drain(p, v) {
+  if (!S.subsOn || !p || p.stamina == null) return;
+  p.stamina = Math.max(0, Math.round((p.stamina - v) * 10) / 10);
+  S.stam[p.id] = p.stamina;
+}
+const TIER_STEP_DOWN = { S: 'A', A: 'B', B: 'C', C: 'D', D: 'D' };
 // geser peluang sesuai selisih atribut (positif = menguntungkan penendang / perebut)
 function duel(chance, delta) {
   if (chance <= 0) return 0;
@@ -516,6 +536,11 @@ function continueTurn() {
 
 function endTurn() {
   if (S.clock <= 0) { endHalf(); return; }
+  if (S.subsOn && S.half === 2 && !S.midSubsDone && S.clock <= CONFIG.HALF_SECONDS / 2) {
+    S.midSubsDone = true;
+    openSubWindow('Babak 2', () => endTurn());
+    return;
+  }
   newTurn(other(S.turn));
   S.phase = 'play';
   refresh();
@@ -608,6 +633,7 @@ async function performMove(p, t) {
     p.x = t.x; p.y = t.y;
     if (dribble) { S.ball = { x: t.x, y: t.y }; els.ball.classList.add('dribble'); }
     if (!t.steal) Sound.play(dribble ? 'dribble' : 'step');
+    drain(p, CONFIG.STAM_MOVE + CONFIG.STAM_STEP * (t.dist || 1) * (dribble ? CONFIG.STAM_DRIBBLE : 1) + (t.steal ? CONFIG.STAM_TACKLE : 0));
     S.targets = [];
     render();
     const got = S.ball.x === p.x && S.ball.y === p.y;
@@ -867,6 +893,7 @@ async function doKick(plan) {
   // hasil sebenarnya diundi di sini
   const sim = simulateKick(plan);
   Sound.play(plan.goal ? 'shot' : 'kick', Math.min(1, plan.d / 8));
+  drain(k, plan.goal ? CONFIG.STAM_SHOT : CONFIG.STAM_KICK);
   const evAt = new Map(sim.events.map(e => [e.at, e]));
   // bola melambung di kotak sebelum & saat melewati lawan
   const air = new Set();
@@ -948,7 +975,8 @@ async function handleGoal(side, kicker, penalty = false) {
   const lp = S.lastPass;
   const assist = !own && !penalty && lp && lp.to === kicker.id && lp.from !== kicker.id
     ? S.players.find(q => q.id === lp.from) : null;
-  S.events.push({ type: 'goal', team: scorer, scorer: own ? null : kicker.num, assist: assist ? assist.num : null, own });
+  S.events.push({ type: 'goal', team: scorer, scorer: own ? null : kicker.num, assist: assist ? assist.num : null, own,
+    scorerPid: own ? null : kicker.pid || null, assistPid: assist ? assist.pid || null : null });
   if (!own) pst(kicker).g++; else pst(kicker).og++;
   if (assist) pst(assist).a++;
   S.timeline.push({ min: matchMinute(), type: 'goal', team: scorer, scorer: pl(kicker), own, penalty,
@@ -987,8 +1015,7 @@ function endHalf() {
       <div class="final">${S.score.home} : ${S.score.away}</div>
       <p>Babak 2: kedua tim <b>bertukar gawang</b>.<br><b style="color:${TEAMS[k].color}">${teamName(k)}</b> kick off.</p>
       <div class="btns"><button class="btn primary" id="btnHalf2">Mulai Babak 2</button></div>`);
-    $('btnHalf2').onclick = () => {
-      if (S.phase !== 'break') return;
+    const startHalf2 = () => {
       hideModal();
       S.half = 2;
       S.clock = CONFIG.HALF_SECONDS;
@@ -996,6 +1023,15 @@ function endHalf() {
       Sound.play('whistle');
       addLog(`Babak kedua dimulai, kick off ${teamName(k)}`, k, 'info');
       render();
+    };
+    $('btnHalf2').onclick = () => {
+      if (S.phase !== 'break') return;
+      if (S.subsOn) {
+        // pemulihan stamina saat istirahat, lalu jendela pergantian
+        for (const id of Object.keys(S.stam)) S.stam[id] = Math.min(100, S.stam[id] + CONFIG.STAM_HALFTIME);
+        for (const p of S.players) if (p.stamina != null) p.stamina = S.stam[p.id] ?? p.stamina;
+        openSubWindow('Turun Minum', startHalf2);
+      } else startHalf2();
     };
     if (!humanTeam()) setTimeout(() => $('btnHalf2') && $('btnHalf2').click(), 2000 / S.speed);
   } else {
@@ -1015,9 +1051,10 @@ function endHalf() {
     $('btnAgain').onclick = () => {
       hideModal();
       if (m) {
-        const rt = playerRatings(), toMap = list => Object.fromEntries(list.map(p => [p.num, p.r]));
+        const rt = playerRatings(), toMap = list => Object.fromEntries(list.filter(p => !p.subIn).map(p => [p.num, p.r]));
+        const byPid = list => Object.fromEntries(list.filter(p => p.pid).map(p => [p.pid, p.r]));
         S.match = null; S.speed = 1;
-        m.onEnd(home, away, S.events.slice(), { home: toMap(rt.home), away: toMap(rt.away) });
+        m.onEnd(home, away, S.events.slice(), { home: toMap(rt.home), away: toMap(rt.away), byPid: { home: byPid(rt.home), away: byPid(rt.away) } });
       }
       else resetGame();
     };
@@ -1037,7 +1074,7 @@ function matchReport(res, col) {
     }
     return [...by.entries()].map(([n, mins]) => `<div>${n} ${mins.join(', ')}</div>`).join('') || '';
   };
-  const icon = { goal: '⚽', yellow: '🟨', second: '🟨🟥', red: '🟥', pen: '❗', pensave: '🧤' };
+  const icon = { goal: '⚽', yellow: '🟨', second: '🟨🟥', red: '🟥', pen: '❗', pensave: '🧤', sub: '🔁' };
   const text = e => e.type === 'goal'
     ? `<b>GOL ${name(e.team)}</b> · ${e.own ? `${e.scorer} (gol bunuh diri)` : `${e.scorer}${e.penalty ? ' (penalti)' : ''}`}${e.assist ? ` <small>assist ${e.assist}</small>` : ''}`
     : e.text;
@@ -1095,13 +1132,125 @@ const ratingClass = r => r >= 8 ? 'r-top' : r >= 7 ? 'r-good' : r >= 6 ? 'r-ok' 
 function ratingTable(ratings, H, A, momId) {
   const col = (list, T) => `<div class="rt-col"><div class="rt-team"><span class="rp-dot sm" style="background:${T.color}"></span>${T.name}</div>
     ${list.map(p => `<div class="rt-row${p.id === momId ? ' mom' : ''}">
-      <span class="rt-pos">${ROLE_LABEL[p.role] || ''}</span><span class="rt-name">${p.name}${p.sentOff ? ' 🟥' : ''}${p.id === momId ? ' ⭐' : ''}</span>
+      <span class="rt-pos">${ROLE_LABEL[p.role] || ''}</span><span class="rt-name">${p.subIn ? '<b class="sub-in">↑</b> ' : ''}${p.name}${p.subOut ? ' <b class="sub-out">↓</b>' : ''}${p.sentOff ? ' 🟥' : ''}${p.id === momId ? ' ⭐' : ''}</span>
       <span class="rt ${ratingClass(p.r)}">${p.r.toFixed(1)}</span></div>`).join('')}</div>`;
   return `<div class="rt-grid">${col(ratings.home, H)}${col(ratings.away, A)}</div>`;
 }
 
+/* =========================================================
+   PERGANTIAN PEMAIN (liga Main Sendiri): turun minum & pertengahan babak 2,
+   maks 3 per tim, kiper hanya diganti kiper, pemain kartu merah tidak bisa diganti.
+   ========================================================= */
+const subTier = (b, slotRole) => (b.role === slotRole ? b.tier : TIER_STEP_DOWN[b.tier]);
+// lakukan pergantian: pemain `out` (di lapangan) diganti cadangan `b` di posisi yang sama
+function makeSub(t, out, b) {
+  const T = TEAMS[t], slot = out.num, slotRole = out.role;
+  pst(out).subOut = true;
+  const id = `${t}-${b.pid}`;
+  const np = { ...out, id, pid: b.pid, name: b.name, tier: subTier(b, slotRole), traits: b.traits || [], stamina: 100 };
+  S.players[S.players.indexOf(out)] = np;
+  S.stam[id] = 100;
+  T.squad[slot] = b.name; T.tiers[slot] = np.tier; T.traits[slot] = np.traits; T.pids[slot] = b.pid;
+  T.bench = T.bench.filter(x => x.pid !== b.pid);
+  T.bench.push({ pid: out.pid, name: out.name, role: (out.natRole || out.role), tier: out.natTier || out.tier, traits: out.traits, used: true });
+  np.natRole = b.role; np.natTier = b.tier;
+  pst(np).subIn = true;
+  S.subs[t]++;
+  if (S.cards[out.id]) S.cards[id] = 0;
+  addTimeline('sub', t, `${pl(out)} keluar, ${b.name} masuk`);
+  addLog(`Pergantian ${teamName(t)}: ${pl(out)} keluar, ${b.name} masuk`, t, 'info');
+  Sound.play('whistle');
+}
+// cadangan yang masih boleh masuk (pemain yang sudah keluar tidak bisa kembali)
+const freshBench = t => TEAMS[t].bench.filter(b => !b.used);
+function canSubPair(t, out, b) {
+  if (S.subs[t] >= CONFIG.MAX_SUBS || !out || !b || b.used) return false;
+  if (out.role === 'GK' || b.role === 'GK') return out.role === 'GK' && b.role === 'GK';
+  return true;
+}
+// komputer: ganti pemain yang lelah / berkartu kuning bila cadangan sepadan
+function botSubs(t, maxNow) {
+  let made = 0;
+  while (made < maxNow && S.subs[t] < CONFIG.MAX_SUBS) {
+    let best = null;
+    for (const out of S.players.filter(p => p.team === t)) {
+      // nilai pemain sekarang (turun karena lelah / risiko kartu merah) vs pengganti segar
+      const curVal = TIER_VAL[out.tier] - fatigue(out) - (S.cards[out.id] ? 0.3 : 0);
+      const freshBonus = (100 - (out.stamina ?? 100)) / 100 * 1.2;
+      for (const b of freshBench(t)) {
+        if (!canSubPair(t, out, b)) continue;
+        const gain = TIER_VAL[subTier(b, out.role)] + freshBonus - curVal;
+        if (gain >= 0.25 && (!best || gain > best.gain)) best = { out, b, gain };
+      }
+    }
+    if (!best) break;
+    makeSub(t, best.out, best.b);
+    made++;
+  }
+  return made;
+}
+
+function openSubWindow(label, done) {
+  const prevPhase = S.phase;
+  S.phase = 'subs';
+  S.targets = [];
+  render();
+  // komputer memutuskan dulu (turun minum maks 2, babak 2 sisa jatah)
+  for (const t of ['home', 'away']) if (S.bots.has(t)) botSubs(t, label === 'Turun Minum' ? 2 : CONFIG.MAX_SUBS);
+  const human = humanTeam();
+  let left = CONFIG.SUB_SECONDS, sel = { out: null, in: null }, timer = null;
+  const close = () => { clearInterval(timer); hideModal(); S.phase = prevPhase === 'subs' ? 'play' : prevPhase; render(); done(); };
+  const draw = () => {
+    const t = human;
+    const onField = t ? S.players.filter(p => p.team === t) : [];
+    const bench = t ? freshBench(t) : [];
+    const stam = p => (p.stamina == null ? '' : `<span class="stam-txt ${p.stamina < 30 ? 'low' : p.stamina < 60 ? 'mid' : 'ok'}">${Math.round(p.stamina)}</span>`);
+    const tierB = (tr) => `<span class="tier-b t${tr}">${tr}</span>`;
+    const ok = t && sel.out && sel.in && canSubPair(t, S.players.find(p => p.id === sel.out), bench.find(b => b.pid === sel.in));
+    const outP = sel.out && S.players.find(p => p.id === sel.out);
+    const inB = sel.in && bench.find(b => b.pid === sel.in);
+    showModal(`
+      <h2>🔁 Pergantian Pemain · ${label}</h2>
+      <p class="sub-timer">Sisa waktu <b id="subLeft">${left}</b> detik · Skor ${S.score.home} : ${S.score.away}</p>
+      ${t ? `<p class="muted">${teamName(t)}: pergantian <b>${S.subs[t]}/${CONFIG.MAX_SUBS}</b>. Pilih pemain keluar lalu cadangan masuk. Kiper hanya diganti kiper. Masuk di luar posisi asli: tier turun 1.</p>
+      <div class="sub-grid">
+        <div><h4>Di lapangan (keluar)</h4>${onField.map(p => `<button type="button" class="sub-p ${sel.out === p.id ? 'on' : ''}" data-sout="${p.id}">
+          <span class="rt-pos">${ROLE_LABEL[p.role]}</span><span>${pl(p)}${S.cards[p.id] ? ' 🟨' : ''}</span>${tierB(p.tier)}${stam(p)}</button>`).join('')}</div>
+        <div><h4>Cadangan (masuk)</h4>${bench.length ? bench.map(b => `<button type="button" class="sub-p ${sel.in === b.pid ? 'on' : ''}" data-sin="${b.pid}">
+          <span class="rt-pos">${ROLE_LABEL[b.role]}</span><span>${b.name}</span>${tierB(b.tier)}</button>`).join('') : '<p class="muted">Tidak ada cadangan.</p>'}</div>
+      </div>
+      ${outP && inB ? `<p class="sub-prev">${pl(outP)} → <b>${inB.name}</b> di posisi ${ROLE_LABEL[outP.role]}: tier ${tierB(subTier(inB, outP.role))}${inB.role !== outP.role && inB.role !== 'GK' ? ' <small class="warn">⚠️ luar posisi</small>' : ''}</p>` : ''}
+      <div class="btns">
+        <button class="btn" id="btnDoSub" ${ok ? '' : 'disabled'}>🔁 Ganti</button>
+        <button class="btn primary" id="btnSubDone">Lanjut Main ▶</button>
+      </div>` : '<p class="muted">Komputer melakukan pergantian…</p><div class="btns"><button class="btn primary" id="btnSubDone">Lanjut ▶</button></div>'}
+      ${S.timeline.filter(e => e.type === 'sub').length ? `<div class="sub-log">${S.timeline.filter(e => e.type === 'sub').map(e => `<div><span class="tdot" style="background:${TEAMS[e.team].color}"></span>${e.min}' ${e.text}</div>`).join('')}</div>` : ''}`);
+    document.querySelectorAll('[data-sout]').forEach(b => { b.onclick = () => { sel.out = b.dataset.sout; draw(); }; });
+    document.querySelectorAll('[data-sin]').forEach(b => { b.onclick = () => { sel.in = b.dataset.sin; draw(); }; });
+    if ($('btnDoSub')) $('btnDoSub').onclick = () => {
+      const outP2 = S.players.find(p => p.id === sel.out), inB2 = freshBench(t).find(b => b.pid === sel.in);
+      if (!canSubPair(t, outP2, inB2)) return;
+      makeSub(t, outP2, inB2);
+      sel = { out: null, in: null };
+      render(); draw();
+    };
+    $('btnSubDone').onclick = close;
+  };
+  draw();
+  // tanpa pemain manusia (ditonton): tutup otomatis setelah sebentar
+  const total = human ? CONFIG.SUB_SECONDS : 3;
+  left = total;
+  timer = setInterval(() => {
+    if (S.paused) return;
+    left--;
+    if ($('subLeft')) $('subLeft').textContent = Math.max(0, left);
+    if (left <= 0) close();
+  }, 1000 / (human ? 1 : S.speed));
+}
+
 function resetGame() {
   newStats();
+  S.subsOn = false;
   S.half = 1;
   S.clock = CONFIG.HALF_SECONDS;
   S.score = { home: 0, away: 0 };
@@ -1219,6 +1368,14 @@ function renderPieces() {
       if (TEAMS[p.team].tiers) nm.dataset.tier = p.tier; else delete nm.dataset.tier;
       nm.classList.toggle('top', p.y === CONFIG.ROWS - 1); // baris paling bawah: nama di atas lingkaran
     } else if (nm) nm.remove();
+    let sb = el.querySelector('.stam');
+    if (p.stamina != null) {
+      if (!sb) { sb = document.createElement('span'); sb.className = 'stam'; sb.innerHTML = '<i></i>'; el.appendChild(sb); }
+      const v = Math.round(p.stamina);
+      sb.firstChild.style.width = v + '%';
+      sb.className = 'stam ' + (v < 30 ? 'low' : v < 60 ? 'mid' : 'ok') + (p.y === CONFIG.ROWS - 1 ? ' bot' : ''); // baris bawah: nama di atas, bar di bawah
+      sb.title = `Stamina ${v}`;
+    } else if (sb) sb.remove();
     const playing = S.phase === 'play' || S.phase === 'animating';
     el.className = 'at player ' + p.team +
       (p.role === 'GK' ? ' gk' : '') +
@@ -1230,7 +1387,7 @@ function renderPieces() {
       (S.walls.includes(p.id) ? ' wall' : '') +
       (S.cards[p.id] ? ' booked' : '') +
       (S.phase === 'penalty' && S.penalty && S.penalty.taker === p.id ? ' selected' : '');
-    el.title = `${teamName(p.team)} #${p.num}${p.name ? ' ' + p.name : ''} (${p.role})${S.cards[p.id] ? ' · kartu kuning' : ''}`;
+    el.title = `${teamName(p.team)} #${p.num}${p.name ? ' ' + p.name : ''} (${p.role})${S.cards[p.id] ? ' · kartu kuning' : ''}${p.stamina != null ? ` · stamina ${Math.round(p.stamina)}` : ''}`;
   }
 }
 
@@ -1546,8 +1703,14 @@ function showMainMenu() {
 // Mulai pertandingan dari mode liga. opt = { home:{name,color}, away:{name,color}, bots:[...], onEnd, knockout, label }
 function startMatch(opt) {
   if (typeof League !== 'undefined') League.hideHub();
-  TEAMS.home = { name: opt.home.name, color: opt.home.color, squad: opt.home.squad || null, tiers: opt.home.tiers || null, traits: opt.home.traits || null };
-  TEAMS.away = { name: opt.away.name, color: opt.away.color, squad: opt.away.squad || null, tiers: opt.away.tiers || null, traits: opt.away.traits || null };
+  const team = o => ({ name: o.name, color: o.color, squad: o.squad ? { ...o.squad } : null, tiers: o.tiers ? { ...o.tiers } : null,
+    traits: o.traits ? { ...o.traits } : null, pids: o.pids ? { ...o.pids } : null, bench: o.bench ? o.bench.slice() : [] });
+  TEAMS.home = team(opt.home);
+  TEAMS.away = team(opt.away);
+  S.subsOn = !!opt.subs;
+  S.stam = {};
+  S.subs = { home: 0, away: 0 };
+  S.midSubsDone = false;
   newStats();
   applyTeamColors();
   S.half = 1;
@@ -1707,6 +1870,7 @@ function showSetup() {
     saveSetup(cfg);
     TEAMS.home = { name: cfg.home.name, color: cfg.home.color, squad: null };
     TEAMS.away = { name: cfg.away.name, color: cfg.away.color, squad: null };
+    S.subsOn = false;
     newStats();
     S.vs = cfg.vs;
     S.bots = cfg.vs === 'pvc' ? new Set([other(cfg.side)]) : new Set();
