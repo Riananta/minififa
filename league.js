@@ -196,6 +196,7 @@ const League = (() => {
       save.players[id] = { id, name, role, tier, traits, club: null };
     });
     save.window = true;      // jendela transfer pra-musim terbuka
+    save.soldBy = {};
     save.firstWindow = true; // musim pertama: wajib beli 2 cadangan (skuad minimal 8)
     save.news = [];
     save.ledger = [];
@@ -262,9 +263,11 @@ const League = (() => {
     if (cid === save.user) save.ledger.unshift({ season: seasonName(save.year), label, amount: Math.round(amount * 100) / 100 });
     if (save.ledger.length > 60) save.ledger.length = 60;
   }
+  // pemain yang baru dijual klub ini di jendela yang sama tidak bisa dibeli kembali (mencegah rugi)
+  const soldByMe = (c, pid) => !!(save.soldBy && save.soldBy[pid] === c.id);
   function buy(c, pid) {
     const p = P(pid);
-    if (!save.window || !p || p.club || c.roster.length >= MARKET.MAX_SQUAD || c.money + 1e-9 < price(p)) return false;
+    if (!save.window || !p || p.club || soldByMe(c, pid) || c.roster.length >= MARKET.MAX_SQUAD || c.money + 1e-9 < price(p)) return false;
     c.money = r2(c.money - price(p)); p.club = c.id; c.roster.push(pid);
     addLedger(c.id, `Beli ${p.name}`, -price(p));
     save.news.unshift(`${club(c.id).name} membeli ${p.name} (${p.tier}) seharga ${fmtM(price(p))}`);
@@ -279,6 +282,7 @@ const League = (() => {
     if (!canSell(c, pid)) return false;
     const p = P(pid);
     c.money = r2(c.money + sellPrice(p)); p.club = null; c.roster = c.roster.filter(x => x !== pid);
+    (save.soldBy = save.soldBy || {})[pid] = c.id;
     addLedger(c.id, `Jual ${p.name}`, sellPrice(p));
     save.news.unshift(`${club(c.id).name} menjual ${p.name} (${p.tier}) ke toko seharga ${fmtM(sellPrice(p))}`);
     return true;
@@ -290,6 +294,7 @@ const League = (() => {
   // 4) selalu penuhi skuad minimal
   const AI_T = { UPGRADE: 0.85, SELL: 0.3, DEPTH: 0.5, DEPTH_SPEND: 0.6 };
   function aiTransfers(c) {
+    const freeAgents = () => Object.values(save.players).filter(p => !p.club && !soldByMe(c, p.id));
     const cheapest = () => Math.min(...freeAgents().map(price), 99);
     const reserve = extra => Math.max(0, minSquad() - (c.roster.length + extra)) * cheapest();
     const pickTop = (opts, k) => { const top = opts.filter(p => TV[p.tier] === TV[opts[0].tier]); return top[Math.floor(Math.random() * Math.min(k, top.length))]; };
@@ -489,10 +494,14 @@ const League = (() => {
   }
   // kekuatan tim: rata-rata tier pemain (+ sedikit "form" musiman)
   const TV = { S: 3, A: 2, B: 1, C: 0, D: -1 };
-  function strength(cid) {
+  // kekuatan dari tier efektif 6 pemain inti (termasuk penalti luar posisi)
+  function lineupStrength(cid) {
     const c = club(cid), t = c.tiers || TIERS[cid];
-    const avg = NUMS.reduce((a, n) => a + TV[t[n] || 'B'], 0) / NUMS.length;
-    return 80 + 3 * avg + (c.form || 0);
+    return 80 + 3 * NUMS.reduce((a, n) => a + TV[t[n] || 'B'], 0) / NUMS.length;
+  }
+  // untuk simulasi skor: + "form" musiman kecil (tidak ditampilkan sebagai bintang)
+  function strength(cid) {
+    return lineupStrength(cid) + (club(cid).form || 0);
   }
   // pemain semu untuk menghitung atribut (memakai fungsi attr() dari mesin game)
   const pseudo = (cid, n) => { const c = club(cid); return { role: ROLE_OF[n], tier: (c.tiers || {})[n] || 'B', traits: (c.traits || {})[n] || [] }; };
@@ -801,6 +810,8 @@ const League = (() => {
       const me = club(save.user);
       prize = { ...me.income, total: me.income.league + me.income.cup + me.income.match, money: me.money };
       entry.prize = prize;
+      // simpan statistik pemain musim ini (dilihat saat jendela transfer berikutnya)
+      save.lastStats = { season: seasonName(save.year), stats: clubPlayerStats(save.user) };
     }
     persist();
     const L = club(entry.league), C = club(entry.cup);
@@ -825,6 +836,7 @@ const League = (() => {
       if (isMarket()) {
         save.window = true; // jendela transfer pra-musim
         save.news = [];
+        save.soldBy = {};
         for (const c of save.clubs) c.income = { league: 0, cup: 0, match: 0 };
       }
       persist();
@@ -1150,28 +1162,62 @@ const League = (() => {
     });
   }
 
+  // Statistik pemain satu klub di semua laga musim ini (liga + piala): main, gol, assist, rata-rata rating
+  function clubPlayerStats(cid) {
+    const st = {};
+    const get = pid => st[pid] || (st[pid] = { apps: 0, sum: 0, g: 0, a: 0 });
+    for (const ev of save.events) for (const m of ev.matches) {
+      if (!m.played || (m.h !== cid && m.a !== cid)) continue;
+      const side = m.h === cid ? 'h' : 'a';
+      if (m.pr && m.pr[side]) {
+        for (const [pid, r] of Object.entries(m.pr[side])) { const x = get(pid); x.apps++; x.sum += r; }
+      } else if (m.lu && m.ratings && m.ratings[side]) {
+        for (const n of NUMS) { const pid = m.lu[side][n], r = m.ratings[side][n]; if (pid && r != null) { const x = get(pid); x.apps++; x.sum += r; } }
+      }
+      for (const g of m.goals || []) {
+        if (g.c !== cid || g.og) continue;
+        const sp = g.sp || pidAt(m, cid, g.s), ap = g.ap || (g.a != null ? pidAt(m, cid, g.a) : null);
+        if (sp) get(sp).g++;
+        if (ap) get(ap).a++;
+      }
+    }
+    for (const x of Object.values(st)) x.avg = x.apps ? x.sum / x.apps : null;
+    return st;
+  }
+  // saat jendela transfer: tampilkan statistik musim lalu (musim baru belum ada laga)
+  function myStats() {
+    if (save.window && save.lastStats) return { label: `Musim ${save.lastStats.season}`, st: save.lastStats.stats };
+    return { label: save.window ? 'Musim ini (belum ada laga)' : `Musim ${seasonName(save.year)}`, st: clubPlayerStats(save.user) };
+  }
+  const statCells = x => x && x.apps
+    ? `<td>${x.apps}</td><td>${x.g}</td><td>${x.a}</td><td><span class="rt ${ratingCls(x.avg)}">${x.avg.toFixed(2)}</span></td>`
+    : '<td class="muted">0</td><td class="muted">-</td><td class="muted">-</td><td class="muted">-</td>';
+
   function myTab() {
     const c = club(save.user), inLineup = id => NUMS.some(n => c.lineup[n] === id);
     const bench = c.roster.filter(id => !inLineup(id)).map(P);
+    const ms = myStats();
     const opt = (n, sel) => c.roster.map(P).filter(p => (p.role === 'GK') === (n === 1))
       .map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${h(p.name)} (${ROLE_SHORT[p.role]} · ${p.tier})</option>`).join('');
     return `<div class="my-head"><span>💰 Uang <b>${fmtM(c.money)}</b></span><span>Skuad <b>${c.roster.length}/${MARKET.MAX_SQUAD}</b></span>
         <span>${save.window ? '🟢 Jendela transfer <b>terbuka</b>' : '🔒 Jendela transfer tutup (buka lagi sebelum musim berikutnya)'}</span>
         <button class="btn sm" id="btnAutoLineup">⚡ Susun otomatis</button></div>
-      <h4 class="aw-h">Pemain Inti</h4>
-      <table class="tbl my-tbl"><thead><tr><th>Posisi</th><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
+      <h4 class="aw-h">Pemain Inti <small class="muted st-label">· statistik ${h(ms.label)} (liga + piala)</small></h4>
+      <div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th>Posisi</th><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
+        <th class="st-h" title="Jumlah main">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h" title="Rata-rata rating">Rating</th></tr></thead><tbody>
       ${NUMS.map(n => { const p = P(c.lineup[n]), et = effTier(p, n), off = p.role !== ROLE_OF[n];
         const pp = { ...p, role: ROLE_OF[n], tier: et };
         return `<tr><td><b>${SLOT_LABEL[n]}</b></td>
           <td class="l"><select data-slot="${n}">${opt(n, p.id)}</select> ${traitIcons(p)}${off ? ` <small class="warn" title="Bermain di luar posisi: tier turun 1">⚠️ luar posisi</small>` : ''}</td>
-          <td>${tierBadge(et)}</td>${attrCells(pp)}</tr>`; }).join('')}
-      </tbody></table>
+          <td>${tierBadge(et)}</td>${attrCells(pp)}${statCells(ms.st[p.id])}</tr>`; }).join('')}
+      </tbody></table></div>
       <p class="muted sq-note">Pilih pemain untuk tiap posisi (memilih pemain dari posisi lain = tukar). Bermain di luar posisi asli: tier turun 1. Posisi kiper hanya untuk kiper.</p>
       <h4 class="aw-h">Cadangan (${bench.length})</h4>
-      ${bench.length ? `<table class="tbl my-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Jual</th></tr></thead><tbody>
-        ${bench.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
+      ${bench.length ? `<div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
+        <th class="st-h">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h">Rating</th><th>Jual</th></tr></thead><tbody>
+        ${bench.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(ms.st[p.id])}
           <td>${save.window ? `<button class="btn sm ghost" data-sell="${p.id}" ${canSell(c, p.id) ? '' : 'disabled'}>Jual ${fmtM(sellPrice(p))}</button>` : '<span class="muted">-</span>'}</td></tr>`).join('')}
-      </tbody></table>` : '<p class="muted">Belum ada cadangan. Beli di tab Toko Pemain saat jendela transfer terbuka.</p>'}
+      </tbody></table></div>` : '<p class="muted">Belum ada cadangan. Beli di tab Toko Pemain saat jendela transfer terbuka.</p>'}
       <h4 class="aw-h">Keuangan</h4>
       ${save.ledger.length ? `<div class="ledger">${save.ledger.slice(0, 15).map(l => `<div><span>${l.season} · ${h(l.label)}</span><b class="${l.amount < 0 ? 'neg' : 'pos'}">${l.amount < 0 ? '−' : '+'}${fmtM(Math.abs(l.amount))}</b></div>`).join('')}</div>` : '<p class="muted">Belum ada transaksi.</p>'}`;
   }
@@ -1180,7 +1226,8 @@ const League = (() => {
     const c = club(save.user);
     const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier))
       .sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
-    const why = p => !save.window ? 'Jendela transfer tutup' : c.roster.length >= MARKET.MAX_SQUAD ? 'Skuad penuh (10)' : c.money + 1e-9 < price(p) ? 'Uang tidak cukup' : '';
+    const why = p => !save.window ? 'Jendela transfer tutup' : soldByMe(c, p.id) ? 'Baru kamu jual (tidak bisa dibeli lagi di jendela ini)'
+      : c.roster.length >= MARKET.MAX_SQUAD ? 'Skuad penuh (10)' : c.money + 1e-9 < price(p) ? 'Uang tidak cukup' : '';
     const filt = (key, cur, items) => `<div class="seg">${items.map(([v, n]) => `<button type="button" data-${key}="${v}" class="${cur === v ? 'on' : ''}">${n}</button>`).join('')}</div>`;
     return `<div class="shop-head">
         <span>💰 <b>${fmtM(c.money)}</b> · Skuad ${c.roster.length}/${MARKET.MAX_SQUAD}${save.window ? '' : ' · 🔒 jendela transfer tutup'}</span>
@@ -1284,10 +1331,10 @@ const League = (() => {
       // tier, ciri & atribut setiap pemain; tim diurutkan dari yang terkuat
       const grade = v => v >= 4 ? 'S+' : v >= 3 ? 'S' : v >= 2 ? 'A' : v >= 1 ? 'B' : v >= 0 ? 'C' : 'D';
       const cell = (v, key) => `<td><span class="ag g${grade(v).replace('+', 'p')}" title="${key}">${grade(v)}</span></td>`;
-      const clubs = save.clubs.slice().sort((a, b) => strength(b.id) - strength(a.id));
+      const clubs = save.clubs.slice().sort((a, b) => lineupStrength(b.id) - lineupStrength(a.id));
       return `<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
         <div class="sq-grid">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
-          <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small>${stars(strength(c.id))}</small></div>
+          <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small title="Dari tier 6 pemain inti">${stars(lineupStrength(c.id))}</small></div>
           <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
           ${NUMS.map(n => { const ps = pseudo(c.id, n), tr = (c.traits || {})[n] || [];
             return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
