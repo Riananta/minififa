@@ -313,7 +313,7 @@ function reachChance(d, k) {
    Atribut: sht = Tembak, pas = Oper, def = Bertahan, ctl = Kontrol, kep = Kiper.
    Setiap duel (penendang vs penghalang, perebut vs pembawa bola) menggeser peluang
    sekitar TIER_EFFECT per selisih 1 tingkat. Tanpa data tier (pertandingan cepat) semua = B. */
-const TIER_VAL = { S: 3, A: 2, B: 1, C: 0 };
+const TIER_VAL = { S: 3, A: 2, B: 1, C: 0, D: -1 }; // D = pemain C yang bermain di luar posisi
 const ROLE_ATTR = {
   GK: { sht: -1, pas: 0, def: 0, ctl: 0, kep: 1 },
   DF: { sht: -1, pas: 0, def: 1, ctl: 0, kep: -2 },
