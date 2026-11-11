@@ -727,3 +727,8 @@ aside { display: grid; gap: 16px; }
 .sub-in { color: #22c55e; } .sub-out { color: #ef4444; }
 @media (max-width: 520px) { .sub-grid { grid-template-columns: 1fr; } }
 .player .stam.bot { top: auto; bottom: 4%; }
+
+/* konfirmasi beli / jual */
+.trade-p { display: grid; gap: 4px; justify-items: center; margin: 6px 0 10px; font-size: 18px; }
+.trade-p span { font-size: 13px; color: var(--muted); }
+.trade-tbl td { padding: 6px 8px; }

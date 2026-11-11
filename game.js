@@ -48,6 +48,7 @@ const CONFIG = {
   SUB_SECONDS: 30,     // lama jendela pergantian
   STAM_MOVE: 1.6, STAM_STEP: 1, STAM_DRIBBLE: 1.4, STAM_KICK: 1.6, STAM_SHOT: 2.2, STAM_TACKLE: 2.2,
   STAM_HALFTIME: 10,   // pemulihan saat turun minum
+  TIRED_STAMINA: 30, TIRED_COST: 1, // stamina < 30: +1 energi tiap gerakan & tendangan
 };
 
 // Nama & warna tim diatur pemain di layar awal
@@ -256,9 +257,9 @@ function moveTargets(p) {
       if (!inField(nx, ny)) break;
       if (p.role === 'GK' && !CONFIG.GOAL_ROWS.includes(ny)) break;
       if (p.role !== 'GK' && isGkArea(nx, ny)) break; // area kiper terlarang
-      const cost = dribbling
+      const cost = (dribbling
         ? (diag ? CONFIG.COST_DRIBBLE_DIAG : CONFIG.COST_DRIBBLE * s)
-        : CONFIG.COST_MOVE_BASE + (diag ? CONFIG.COST_DIAG : CONFIG.COST_STEP * s);
+        : CONFIG.COST_MOVE_BASE + (diag ? CONFIG.COST_DIAG : CONFIG.COST_STEP * s)) + tiredCost(p);
       const q = playerAt(nx, ny);
       if (q) {
         const isHolder = S.ball.x === nx && S.ball.y === ny;
@@ -430,6 +431,7 @@ function planKick(k, aim, kickLen = S.kickLen) {
   const reach = reachChance(d, k);
   const success = blockers.reduce((a, b) => a * b.chance, reach);
   const plan = { from, path, goal, d, blockers, receiver, reach, success };
+  plan.kicker = k;
   plan.cost = kickCost(plan);
   return plan;
 }
@@ -437,10 +439,13 @@ function planKick(k, aim, kickLen = S.kickLen) {
 // Biaya energi tendangan (tendangan bebas gratis: energi berlaku setelah bola dimainkan)
 function kickCost(plan) {
   if (S.setPiece === 'free') return 0;
-  if (plan.goal) return CONFIG.COST_SHOT + (plan.d > 6 ? 1 : 0);
+  const extra = tiredCost(plan.kicker);
+  if (plan.goal) return CONFIG.COST_SHOT + (plan.d > 6 ? 1 : 0) + extra;
   const [a, b, c] = CONFIG.COST_PASS;
-  return plan.d <= 3 ? a : plan.d <= 6 ? b : c;
+  return (plan.d <= 3 ? a : plan.d <= 6 ? b : c) + extra;
 }
+// pemain kelelahan (stamina < 30) butuh 1 energi tambahan untuk tiap gerakan & tendangan
+const tiredCost = p => (p && p.stamina != null && p.stamina < CONFIG.TIRED_STAMINA ? CONFIG.TIRED_COST : 0);
 
 // Undi hasil tendangan sebenarnya
 function simulateKick(plan) {
