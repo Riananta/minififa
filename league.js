@@ -243,12 +243,20 @@ const League = (() => {
     c.lineup = lineup;
     syncClub(c);
   }
+  // kiper hanya boleh di posisi kiper, dan posisi kiper hanya untuk kiper
+  const slotOk = (pid, slot) => !!P(pid) && (P(pid).role === 'GK') === (slot === 1);
   function setSlot(c, slot, pid) {
     const prev = c.lineup[slot];
     const other = NUMS.find(n => c.lineup[n] === pid);
+    if (!slotOk(pid, slot) || (other != null && prev && !slotOk(prev, other))) return false;
     if (other != null) c.lineup[other] = prev; // tukar posisi
     c.lineup[slot] = pid;
     syncClub(c);
+    return true;
+  }
+  // perbaiki susunan yang tidak sah (mis. pemain lapangan di gawang dari versi sebelumnya)
+  function repairLineup(c) {
+    if (NUMS.some(n => !c.lineup[n] || !slotOk(c.lineup[n], n))) autoLineup(c);
   }
   function addLedger(cid, label, amount) {
     if (cid === save.user) save.ledger.unshift({ season: seasonName(save.year), label, amount: Math.round(amount * 100) / 100 });
@@ -361,6 +369,7 @@ const League = (() => {
     if (save && !save.difficulty) save.difficulty = 'hard';
     // karier lama = mode Main Sendiri
     if (save && !save.mode) save.mode = 'solo';
+    if (save && save.market) for (const c of save.clubs) if (c.lineup) repairLineup(c);
     return save;
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* abaikan */ } }
@@ -983,11 +992,15 @@ const League = (() => {
     hub.querySelectorAll('[data-play]').forEach(b => { b.onclick = () => playUserMatch(b.dataset.play); });
     // pasar: atur susunan inti, beli, jual, filter toko, tutup jendela
     hub.querySelectorAll('[data-slot]').forEach(sel => { sel.onchange = () => { setSlot(club(save.user), +sel.dataset.slot, sel.value); persist(); showHub(); }; });
-    hub.querySelectorAll('[data-buy]').forEach(b => { b.onclick = () => { if (buy(club(save.user), b.dataset.buy)) { persist(); showHub(); } }; });
-    hub.querySelectorAll('[data-sell]').forEach(b => { b.onclick = () => {
-      const p = P(b.dataset.sell);
-      if (!confirm(`Jual ${p.name} ke toko seharga ${fmtM(sellPrice(p))}?`)) return;
-      if (sell(club(save.user), p.id)) { persist(); showHub(); }
+    hub.querySelectorAll('[data-buy]').forEach(b => { b.onclick = async () => {
+      const c = club(save.user), p = P(b.dataset.buy);
+      if (!(await confirmTrade('buy', c, p))) return;
+      if (buy(c, p.id)) { persist(); showHub(); }
+    }; });
+    hub.querySelectorAll('[data-sell]').forEach(b => { b.onclick = async () => {
+      const c = club(save.user), p = P(b.dataset.sell);
+      if (!(await confirmTrade('sell', c, p))) return;
+      if (sell(c, p.id)) { persist(); showHub(); }
     }; });
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
@@ -1021,10 +1034,33 @@ const League = (() => {
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
   let shopRole = 'all', shopTier = 'all';
 
+  // jendela konfirmasi beli / jual pemain
+  function confirmTrade(kind, c, p) {
+    const amount = kind === 'buy' ? price(p) : sellPrice(p);
+    const after = kind === 'buy' ? c.money - amount : c.money + amount;
+    showModal(`
+      <h2>${kind === 'buy' ? '🛒 Beli Pemain' : '💸 Jual Pemain'}</h2>
+      <div class="trade-p"><b>${h(p.name)}</b> ${traitIcons(p)}<span>${ROLE_ID[p.role]} · Tier ${tierBadge(p.tier)}</span></div>
+      <table class="tbl trade-tbl"><tbody>
+        <tr><td class="l">${kind === 'buy' ? 'Harga' : 'Harga jual (40%)'}</td><td><b>${fmtM(amount)}</b></td></tr>
+        ${kind === 'sell' ? `<tr><td class="l">Harga di toko</td><td>${fmtM(price(p))}</td></tr>` : ''}
+        <tr><td class="l">Uang sekarang</td><td>${fmtM(c.money)}</td></tr>
+        <tr><td class="l">Uang setelahnya</td><td><b>${fmtM(after)}</b></td></tr>
+        <tr><td class="l">Skuad setelahnya</td><td>${c.roster.length + (kind === 'buy' ? 1 : -1)}/${MARKET.MAX_SQUAD}</td></tr>
+      </tbody></table>
+      ${kind === 'sell' ? '<p class="muted">Pemain yang dijual kembali ke toko dengan harga penuh dan bisa dibeli klub lain.</p>' : ''}
+      <div class="btns"><button class="btn ghost" id="btnTradeNo">Batal</button>
+        <button class="btn primary" id="btnTradeYes">${kind === 'buy' ? 'Ya, beli' : 'Ya, jual'}</button></div>`);
+    return new Promise(res => {
+      el('btnTradeYes').onclick = () => { hideModal(); res(true); };
+      el('btnTradeNo').onclick = () => { hideModal(); res(false); };
+    });
+  }
+
   function myTab() {
     const c = club(save.user), inLineup = id => NUMS.some(n => c.lineup[n] === id);
     const bench = c.roster.filter(id => !inLineup(id)).map(P);
-    const opt = (n, sel) => c.roster.map(P).filter(p => n !== 1 || p.role === 'GK')
+    const opt = (n, sel) => c.roster.map(P).filter(p => (p.role === 'GK') === (n === 1))
       .map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${h(p.name)} (${ROLE_SHORT[p.role]} · ${p.tier})</option>`).join('');
     return `<div class="my-head"><span>💰 Uang <b>${fmtM(c.money)}</b></span><span>Skuad <b>${c.roster.length}/${MARKET.MAX_SQUAD}</b></span>
         <span>${save.window ? '🟢 Jendela transfer <b>terbuka</b>' : '🔒 Jendela transfer tutup (buka lagi sebelum musim berikutnya)'}</span>
