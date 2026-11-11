@@ -671,3 +671,14 @@ aside { display: grid; gap: 16px; }
 .ag { display: inline-block; min-width: 22px; padding: 0 4px; border-radius: 4px; font-size: 11px; font-weight: 900; }
 .ag.gSp { background: #f59e0b; color: #0b1220; } .ag.gS { background: #fbbf24; color: #0b1220; } .ag.gA { background: #a3e635; color: #0b1220; }
 .ag.gB { background: #7dd3fc; color: #0b1220; } .ag.gC { background: #475569; color: #fff; } .ag.gD { background: #1e293b; color: #94a3b8; }
+
+/* tombol suara (pojok kanan bawah) */
+.audio-ctl { position: fixed; right: 12px; bottom: 12px; z-index: 60; display: flex; gap: 6px; }
+.audio-ctl button {
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.audio-ctl button:hover { border-color: var(--gold); }
+.audio-ctl button.off { opacity: .45; position: relative; }
+.audio-ctl button.off::after { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 2px; background: #f87171; transform: rotate(-45deg); }

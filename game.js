@@ -591,6 +591,7 @@ async function performMove(p, t) {
       await sleep(300);
       p.x = back.x; p.y = back.y;
       popup(t.steal, 'LOLOS!', 'ok');
+      Sound.play('dodge');
       addLog(`${pl(t.steal)} lolos dari rebutan ${pl(p)}`, t.steal.team);
       render();
       await sleep(300);
@@ -616,7 +617,7 @@ async function performMove(p, t) {
       if (lp && !lp.to && from && from.team === p.team && from !== p) lp.to = p.id;
       else S.lastPass = null;
     }
-    if (t.steal) { S.stats[p.team].tackles++; pst(p).tk++; }
+    if (t.steal) { S.stats[p.team].tackles++; pst(p).tk++; Sound.play('tackle'); }
     if (t.steal) addLog(`${teamName(p.team)} ${pl(p)} merebut bola dari ${pl(t.steal)}!`, p.team);
     else if (dribble) addLog(`${teamName(p.team)} ${pl(p)} menggiring bola`, p.team);
     else addLog(`${teamName(p.team)} ${pl(p)} bergerak${got ? ' & menguasai bola' : ''}`, p.team);
@@ -651,6 +652,7 @@ async function handleFoul(fouler, victim, t) {
   await sleep(300);
   fouler.x = back.x; fouler.y = back.y;
   popup(victim, 'PELANGGARAN!', 'bad');
+  Sound.play('foul');
   render();
   const defSide = sideOf(fouler.team);
   const pen = inBox(S.ball.x, S.ball.y, defSide);
@@ -686,6 +688,7 @@ async function giveCard(p) {
   if (card === 'yellow') { S.stats[p.team].yellow++; addTimeline('yellow', p.team, `Kartu kuning: ${pl(p)}`); }
   if (card === 'second') { S.stats[p.team].yellow++; S.stats[p.team].red++; addTimeline('second', p.team, `Kartu kuning kedua: ${pl(p)}, kartu merah`); }
   if (card === 'red') { S.stats[p.team].red++; addTimeline('red', p.team, `Kartu merah langsung: ${pl(p)}`); }
+  Sound.play(card === 'warn' ? 'whistle' : 'card');
   showModal(`<div class="ref-card ${info.cls}"></div>
     <div class="goal-text small">${info.title}</div>
     <p class="goal-sub" style="color:${TEAMS[p.team].color}">${who}</p>`, true);
@@ -733,6 +736,7 @@ async function takePenalty() {
   render();
   const goalX = dx < 0 ? 0 : CONFIG.COLS + 1;
   const lastX = gk ? gk.x : goalX - dx;
+  Sound.play('shot');
   for (let x = taker.x + dx; x !== lastX + dx; x += dx) {
     S.ball = { x, y: 2 };
     renderBall();
@@ -745,6 +749,7 @@ async function takePenalty() {
     S.stats[def].saves++; pst(gk).sv++;
     addTimeline('pensave', def, `Penalti ${pl(taker)} ditahan kiper ${pl(gk)}`);
     popup(gk, 'DITAHAN!', 'bad');
+    Sound.play('save');
     addLog(`Penalti ${pl(taker)} ditahan kiper ${teamName(def)} ${pl(gk)}!`, def, 'info');
     renderBall();
     await sleep(700);
@@ -859,6 +864,7 @@ async function doKick(plan) {
   render();
   // hasil sebenarnya diundi di sini
   const sim = simulateKick(plan);
+  Sound.play(plan.goal ? 'shot' : 'kick', Math.min(1, plan.d / 8));
   const evAt = new Map(sim.events.map(e => [e.at, e]));
   // bola melambung di kotak sebelum & saat melewati lawan
   const air = new Set();
@@ -873,9 +879,11 @@ async function doKick(plan) {
       const gk = e.p.role === 'GK';
       if (e.through) {
         popup(c, gk ? 'TEMBUS!' : 'LOLOS!', 'ok');
+        if (!gk) Sound.play('chip');
         addLog(gk ? `Tembakan ${pl(k)} menembus kiper ${pl(e.p)}!` : `Bola melambung melewati ${teamName(e.p.team)} ${pl(e.p)}`, k.team);
       } else {
         popup(c, e.dive ? 'DITEPIS!' : gk ? 'DITANGKAP' : 'DIPOTONG', 'bad');
+        Sound.play(gk ? 'save' : 'block');
       }
     }
     await sleep(air.has(i) ? 150 : 110);
@@ -904,6 +912,7 @@ async function doKick(plan) {
   }
   if (sim.short) {
     popup(S.ball, 'KURANG JAUH', 'bad');
+    Sound.play('short');
     addLog(`Tendangan ${pl(k)} terlalu jauh, bola berhenti di tengah jalan`, k.team);
   }
   const r = sim.receiver;
@@ -929,6 +938,7 @@ async function doKick(plan) {
 }
 
 async function handleGoal(side, kicker, penalty = false) {
+  Sound.play('goal');
   const conceding = side === 'left' ? leftTeam() : other(leftTeam());
   const scorer = other(conceding);
   const own = kicker.team === conceding;
@@ -955,6 +965,7 @@ async function handleGoal(side, kicker, penalty = false) {
   hideModal();
   if (S.clock <= 0) { endHalf(); return; }
   setupKickoff(conceding);
+  Sound.play('whistle');
   addLog(`Kick off ${teamName(conceding)}`, conceding, 'info');
   render();
 }
@@ -967,6 +978,7 @@ function endHalf() {
     S.phase = 'break';
     render();
     addLog('Babak pertama selesai', null, 'info');
+    Sound.play('halftime');
     const k = other(S.firstKickoff);
     showModal(`
       <h2>Turun Minum</h2>
@@ -979,6 +991,7 @@ function endHalf() {
       S.half = 2;
       S.clock = CONFIG.HALF_SECONDS;
       setupKickoff(k);
+      Sound.play('whistle');
       addLog(`Babak kedua dimulai, kick off ${teamName(k)}`, k, 'info');
       render();
     };
@@ -987,6 +1000,7 @@ function endHalf() {
     S.phase = 'over';
     render();
     addLog('Pertandingan selesai', null, 'info');
+    Sound.play('fulltime');
     const { home, away } = S.score;
     const res = home === away ? 'Hasil Imbang' : `${teamName(home > away ? 'home' : 'away')} Menang!`;
     const col = home === away ? 'var(--gold)' : TEAMS[home > away ? 'home' : 'away'].color;
@@ -1128,6 +1142,7 @@ function showToss() {
       $('tossBtns').innerHTML = '';
       $('tossResult').textContent = 'Koin dilempar...';
       $('coin').style.transform = `rotateY(${5 * 360 + (result === 'tail' ? 180 : 0)}deg)`;
+      Sound.play('coin');
       setTimeout(() => {
         const correct = guess === result;
         const k = correct ? g : other(g);
@@ -1139,6 +1154,7 @@ function showToss() {
         $('btnStart').onclick = () => {
           hideModal();
           setupKickoff(k);
+          Sound.play('whistle');
           addLog(`Kick off! ${teamName(k)} memulai`, k, 'info');
           render();
         };
@@ -1577,6 +1593,7 @@ function tick(now) {
     }
     renderHud();
   }
+  Sound.crowd(!S.paused && ['play', 'animating', 'penalty', 'goal'].includes(S.phase));
   if (!S.paused && !botBusy && S.bots.has(S.turn)) {
     if (S.phase === 'play') runBot();
     else if (S.phase === 'penalty') runBotPenalty();
