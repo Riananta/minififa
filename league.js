@@ -556,6 +556,79 @@ const League = (() => {
     };
     return { h: side(m.h, m.hs, m.as), a: side(m.a, m.as, m.hs) };
   }
+  /* ---------- pergantian pemain untuk laga yang diundi (liga Main Sendiri) ---------- */
+  const SUB_COUNT_W = { 0: 15, 1: 35, 2: 35, 3: 15 }; // jumlah pergantian per tim
+  const SIM_GK_SUB = 0.08;                            // pergantian kiper jarang
+  // undi pergantian satu tim: menit 46-85, cadangan diutamakan masuk di posisi aslinya
+  function simSubs(cid) {
+    const c = club(cid);
+    if (!c.lineup) return [];
+    const inXI = id => NUMS.some(n => c.lineup[n] === id);
+    let bench = c.roster.filter(id => !inXI(id)).map(P).filter(p => p.role !== 'GK' || Math.random() < SIM_GK_SUB);
+    const n = Math.min(pick(SUB_COUNT_W), bench.length);
+    const used = new Set(), out = [];
+    for (let i = 0; i < n && bench.length; i++) {
+      const b = bench.splice(Math.floor(Math.random() * bench.length), 1)[0];
+      let slot;
+      if (b.role === 'GK') slot = used.has(1) ? null : 1;
+      else {
+        const free = NUMS.filter(x => x !== 1 && !used.has(x));
+        const same = free.filter(x => ROLE_OF[x] === b.role);
+        const pool = same.length ? same : free;
+        slot = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      }
+      if (slot == null) continue;
+      used.add(slot);
+      out.push({ c: cid, min: 46 + Math.floor(Math.random() * 40), slot, out: c.lineup[slot], in: b.id });
+    }
+    return out.sort((a, b) => a.min - b.min);
+  }
+  // pemain di lapangan pada menit tertentu (slot -> pid)
+  function onPitch(m, cid, minute) {
+    const map = { ...m.lu[cid === m.h ? 'h' : 'a'] };
+    for (const x of m.subs || []) if (x.c === cid && x.min <= minute) map[x.slot] = x.in;
+    return map;
+  }
+  // pemain semu untuk pid yang bermain di slot (tier turun bila di luar posisi)
+  const asSlot = (pid, slot) => { const p = P(pid); return { role: ROLE_OF[slot], tier: effTier(p, slot), traits: p.traits }; };
+  // gol undian bermenit: pencetak & assist dipilih dari pemain yang sedang di lapangan
+  function genGoalsTimed(m, cid, n) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const min = 1 + Math.floor(Math.random() * 90);
+      const pitch = onPitch(m, cid, min);
+      const gw = {}, aw = {};
+      for (const k of NUMS) {
+        gw[k] = GOAL_W[k] * Math.max(0.2, 1 + 0.25 * (attr(asSlot(pitch[k], k), 'sht') - 2));
+        aw[k] = ASSIST_W[k] * Math.max(0.2, 1 + 0.25 * (attr(asSlot(pitch[k], k), 'pas') - 2));
+      }
+      const sl = pick(gw);
+      let a = null;
+      if (Math.random() < ASSIST_CHANCE) { const w = { ...aw }; delete w[sl]; a = pick(w); }
+      out.push({ c: cid, s: sl, a, sp: pitch[sl], ap: a != null ? pitch[a] : undefined, min });
+    }
+    return out.sort((x, y) => x.min - y.min);
+  }
+  // rating undian per pemain (termasuk pengganti)
+  function genRatingsTimed(m) {
+    const side = (cid, own, conc) => {
+      const lu = m.lu[cid === m.h ? 'h' : 'a'], out = {};
+      const played = Object.entries(lu).map(([slot, pid]) => [pid, +slot]);
+      for (const x of m.subs || []) if (x.c === cid) played.push([x.in, x.slot]);
+      for (const [pid, slot] of played) {
+        const role = ROLE_OF[slot];
+        let r = 6.3 + (Math.random() + Math.random() + Math.random() - 1.5) * 0.45 + 0.15 * (TV[effTier(P(pid), slot)] - 1.5);
+        for (const g of m.goals || []) if (g.c === cid && !g.og) { if (g.sp === pid) r += 1.1; if (g.ap === pid) r += 0.7; }
+        r += own > conc ? 0.5 : own === conc ? 0.1 : -0.4;
+        if (role === 'GK') r += conc === 0 ? 0.8 : -0.3 * conc;
+        if (role === 'DF') r += conc === 0 ? 0.4 : -0.15 * conc;
+        out[pid] = Math.round(Math.max(3, Math.min(10, r)) * 10) / 10;
+      }
+      return out;
+    };
+    return { h: side(m.h, m.hs, m.as), a: side(m.a, m.as, m.hs) };
+  }
+
   function setResult(ev, m, hs, as, so, goals, ratings) {
     m.hs = hs; m.as = as; m.played = true;
     if (isMarket()) {
@@ -568,9 +641,17 @@ const League = (() => {
         else pay(hs > as ? m.h : m.a, MARKET.WIN, 'Bonus menang');
       }
     }
-    m.goals = goals || [...genGoals(m.h, hs), ...genGoals(m.a, as)];
-    m.ratings = ratings ? { h: ratings.home, a: ratings.away } : genRatings(m);
-    if (ratings && ratings.byPid && isMarket()) m.pr = { h: ratings.byPid.home, a: ratings.byPid.away };
+    if (isMarket() && !goals) {
+      // laga yang diundi: pergantian, gol bermenit & rating per pemain
+      m.subs = [...simSubs(m.h), ...simSubs(m.a)];
+      m.goals = [...genGoalsTimed(m, m.h, hs), ...genGoalsTimed(m, m.a, as)].sort((x, y) => x.min - y.min);
+      m.ratings = genRatings(m);
+      m.pr = genRatingsTimed(m);
+    } else {
+      m.goals = goals || [...genGoals(m.h, hs), ...genGoals(m.a, as)];
+      m.ratings = ratings ? { h: ratings.home, a: ratings.away } : genRatings(m);
+      if (ratings && ratings.byPid && isMarket()) m.pr = { h: ratings.byPid.home, a: ratings.byPid.away };
+    }
     if (ev.type === 'cup') {
       if (hs === as) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
       m.winner = hs > as || (hs === as && m.ph > m.pa) ? m.h : m.a;
@@ -769,8 +850,9 @@ const League = (() => {
     return (club(cid).squad && club(cid).squad[num]) || `#${num}`;
   };
   const gname = (g, key, m) => { const pid = g[key === 's' ? 'sp' : 'ap']; return pid && P(pid) ? P(pid).name : pname(g.c, g[key], m); };
-  const goalLine = (g, m) => g.og ? `${h(club(g.c).name)}: gol bunuh diri`
-    : `${h(gname(g, 's', m))}${g.a ? ` <small>(assist ${h(gname(g, 'a', m))})</small>` : ''}`;
+  const goalLine = (g, m) => (g.og ? `${h(club(g.c).name)}: gol bunuh diri`
+    : `${h(gname(g, 's', m))}${g.a ? ` <small>(assist ${h(gname(g, 'a', m))})</small>` : ''}`) + (g.min ? ` <small>${g.min}'</small>` : '');
+  const subLine = x => `🔁 ${x.min}' ${h(P(x.out).name)} → <b>${h(P(x.in).name)}</b>`;
 
   // Statistik pemain sepanjang musim (liga): penampilan, rata-rata rating, gol, assist, clean sheet
   function seasonPlayers() {
@@ -868,6 +950,8 @@ const League = (() => {
       <div class="final">${m.hs} : ${m.as}</div>
       <p><b style="color:${H.color}">${h(H.name)}</b> vs <b style="color:${A.color}">${h(A.name)}</b>${m.ph != null ? ` · pen ${m.ph}-${m.pa}` : ''}</p>
       <div class="scorers"><div>${side(m.h)}</div><div>${side(m.a)}</div></div>
+      ${(m.subs || []).length ? `<div class="scorers subs-sim"><div>${m.subs.filter(x => x.c === m.h).map(x => `<div>${subLine(x)}</div>`).join('') || '<div class="muted">-</div>'}</div>
+        <div>${m.subs.filter(x => x.c === m.a).map(x => `<div>${subLine(x)}</div>`).join('') || '<div class="muted">-</div>'}</div></div>` : ''}
       <h4 class="aw-h">Rating Pemain</h4>
       ${matchRatingTable(m)}
       <div class="btns"><button class="btn primary" id="btnInstOk">Lanjut</button></div>`);
@@ -876,7 +960,16 @@ const League = (() => {
   }
 
   function matchRatingTable(m) {
-    const list = (cid, side) => NUMS.map(n => ({ id: cid + n, num: n, name: pname(cid, n, m), role: ROLE_OF[n], r: m.ratings[side][n] }));
+    const list = (cid, side) => {
+      if (!(m.pr && m.lu)) return NUMS.map(n => ({ id: cid + n, num: n, name: pname(cid, n, m), role: ROLE_OF[n], r: m.ratings[side][n] }));
+      const rows = [];
+      for (const n of NUMS) {
+        const pid = m.lu[side][n], sub = (m.subs || []).find(x => x.c === cid && x.out === pid);
+        rows.push({ id: pid, num: n, name: P(pid).name, role: ROLE_OF[n], r: m.pr[side][pid], subOut: !!sub });
+        if (sub) rows.push({ id: sub.in, num: n, name: P(sub.in).name, role: ROLE_OF[n], r: m.pr[side][sub.in], subIn: true });
+      }
+      return rows.filter(r => r.r != null);
+    };
     const all = [...list(m.h, 'h'), ...list(m.a, 'a')].sort((a, b) => b.r - a.r);
     return ratingTable({ home: list(m.h, 'h'), away: list(m.a, 'a') }, club(m.h), club(m.a), all[0] && all[0].id);
   }
