@@ -615,6 +615,7 @@ const League = (() => {
       dot.className = goal ? 'in' : 'out';
       el(side === 'h' ? 'soH' : 'soA').appendChild(dot);
       if (goal) { if (side === 'h') ph++; else pa++; }
+      Sound.play(goal ? 'penGoal' : 'penMiss');
       el('soHS').textContent = ph; el('soAS').textContent = pa;
     }
     const w = so.ph > so.pa ? H : A;
