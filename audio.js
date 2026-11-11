@@ -110,11 +110,21 @@ const Sound = (() => {
     card(t) { whistle(t, 0.7); noise(t + 0.4, 1.1, { freq: 300, q: 0.7, vol: 0.2, attack: 0.2 }); },
     penalty(t) { whistle(t, 0.9); },
     coin(t) { tone(1760, t, 0.6, { vol: 0.15 }); tone(2637, t, 0.4, { vol: 0.07 }); },
-    click(t) { tone(900, t, 0.04, { type: 'triangle', vol: 0.06 }); },
+    // --- antarmuka ---
+    click(t) { tone(1100, t, 0.05, { type: 'triangle', vol: 0.12 }); tone(1650, t + 0.012, 0.03, { type: 'sine', vol: 0.05 }); },
+    tab(t) { tone(700, t, 0.06, { type: 'triangle', vol: 0.1 }); tone(1050, t + 0.04, 0.06, { type: 'triangle', vol: 0.08 }); },
+    select(t) { tone(660, t, 0.07, { type: 'triangle', vol: 0.12 }); tone(990, t + 0.05, 0.08, { type: 'triangle', vol: 0.1 }); },
+    toggle(t) { tone(520, t, 0.06, { type: 'square', vol: 0.05 }); tone(780, t + 0.05, 0.07, { type: 'square', vol: 0.05 }); },
+    tick(t) { tone(1500, t, 0.02, { type: 'triangle', vol: 0.06 }); },
+    // --- gerak pemain ---
+    step(t) { for (let i = 0; i < 3; i++) noise(t + i * 0.09, 0.05, { freq: 350, q: 1.2, vol: 0.12 }); },
+    dribble(t) { for (let i = 0; i < 3; i++) { noise(t + i * 0.1, 0.04, { freq: 400, q: 1.2, vol: 0.1 }); tone(160, t + i * 0.1 + 0.03, 0.06, { to: 90, vol: 0.18 }); } },
     penGoal(t) { SFX.kick(t, 0.8); cheer(t + 0.1, 1.2, 0.25); },
     penMiss(t) { SFX.kick(t, 0.8); noise(t + 0.15, 0.9, { freq: 450, to: 250, q: 0.8, vol: 0.2, attack: 0.1 }); },
   };
+  let onPlay = null; // kait pemantau (untuk pengujian)
   function play(name, arg) {
+    if (onPlay) onPlay(name);
     if (!ctx || !prefs.sfx || !SFX[name]) return;
     try { SFX[name](ctx.currentTime + 0.01, arg); } catch (e) { /* jangan ganggu permainan */ }
   }
@@ -212,11 +222,31 @@ const Sound = (() => {
     box.className = 'audio-ctl';
     box.innerHTML = '<button id="btnMusic" type="button"></button><button id="btnSfx" type="button"></button>';
     document.body.appendChild(box);
-    document.getElementById('btnMusic').onclick = () => { init(); setMusic(!prefs.music); };
-    document.getElementById('btnSfx').onclick = () => { init(); setSfx(!prefs.sfx); };
+    document.getElementById('btnMusic').onclick = () => { init(); setMusic(!prefs.music); play('toggle'); };
+    document.getElementById('btnSfx').onclick = () => { init(); setSfx(!prefs.sfx); play('toggle'); };
     updateButtons();
   }
   // suara aktif setelah interaksi pertama
+  // Bunyi klik antarmuka (tombol, menu, tab, pilihan). Klik yang sudah punya suara sendiri
+  // (kotak tujuan gerak, bidikan tendangan, lempar koin) tidak ikut berbunyi.
+  let lastUi = 0;
+  function uiSound(name) {
+    const now = performance.now();
+    if (now - lastUi < 40) return; // cegah bunyi ganda
+    lastUi = now;
+    play(name);
+  }
+  document.addEventListener('click', e => {
+    const el = e.target.closest('button, select, .player.can-select');
+    if (!el || el.disabled) return;
+    if (el.matches('.target, [data-guess], #btnMusic, #btnSfx')) return;
+    if (el.closest('.tabs') || el.matches('[data-tab]')) return uiSound('tab');
+    if (el.matches('.player')) return; // pemain: bunyi "select" dari game.js
+    uiSound('click');
+  }, true);
+  document.addEventListener('input', e => { if (e.target.matches('input[type=range]')) uiSound('tick'); }, true);
+  document.addEventListener('change', e => { if (e.target.matches('select')) uiSound('click'); }, true);
+
   const unlock = () => { init(); window.removeEventListener('pointerdown', unlock, true); window.removeEventListener('keydown', unlock, true); };
   window.addEventListener('pointerdown', unlock, true);
   window.addEventListener('keydown', unlock, true);
@@ -242,5 +272,5 @@ const Sound = (() => {
     }
   }
 
-  return { play, crowd, setMusic, setSfx, prefs, _ctx: () => ctx, _render: renderOffline };
+  return { play, crowd, setMusic, setSfx, prefs, _ctx: () => ctx, _render: renderOffline, _watch: fn => { onPlay = fn; } };
 })();
