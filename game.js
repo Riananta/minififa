@@ -551,6 +551,7 @@ function onPlayerClick(id) {
   const p = S.players.find(q => q.id === id);
   if (!p || p.team !== S.turn) return;
   const isHolder = holder() === p;
+  if (isHolder || !S.used.has(p.id)) Sound.play('select');
   if (!isHolder && S.used.has(p.id)) return; // pemain ini sudah bergerak giliran ini
   S.aim = null;
   if (isHolder && S.selected === id) {
@@ -606,6 +607,7 @@ async function performMove(p, t) {
     if (t.steal) { t.steal.x = t.push.x; t.steal.y = t.push.y; }
     p.x = t.x; p.y = t.y;
     if (dribble) { S.ball = { x: t.x, y: t.y }; els.ball.classList.add('dribble'); }
+    if (!t.steal) Sound.play(dribble ? 'dribble' : 'step');
     S.targets = [];
     render();
     const got = S.ball.x === p.x && S.ball.y === p.y;
