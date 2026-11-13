@@ -273,7 +273,7 @@ const League = (() => {
   const CLUB_POT = { 'com-4': 'T', 'com-11': 'ST', 'rbl-9': 'ST', 'scp-4': 'T', 'ben-2': 'T' };
   // Ekonomi (dalam juta). Juara liga + piala 3 musim beruntun ~ 70 jt = 1 pemain S termurah.
   const MARKET = {
-    START_MONEY: 10, START_MONEY_P: 20, MIN_SQUAD: 6, MIN_FIRST: 8, MAX_SQUAD: 10, SELL_RATE: 0.4,
+    START_MONEY: 10, START_MONEY_P: 20, MIN_SQUAD: 6, MAX_SQUAD: 10, SELL_RATE: 0.4,
     PRICE: { S: 70, A: 18, B: 5, C: 1.5 }, TRAIT_BONUS: 0.1,
     LEAGUE_PRIZE: [12, 9, 7, 6, 5, 4.5, 4, 3.5, 3, 2.7, 2.3, 2, 1.5, 1.3, 1.2, 1],
     CUP_PRIZE: { 'Babak 32 Besar': 0.3, 'Babak 16 Besar': 0.5, 'Perempat Final': 1, 'Semifinal': 2, 'Final': 3, 'Juara': 5 },
@@ -423,7 +423,6 @@ const League = (() => {
     });
     save.window = true;      // jendela transfer pra-musim terbuka
     save.soldBy = {};
-    save.firstWindow = true; // musim pertama: wajib beli 2 cadangan (skuad minimal 8)
     save.news = [];
     save.ledger = [];
   }
@@ -436,7 +435,7 @@ const League = (() => {
       c.squad[n] = p.name; c.tiers[n] = effTier(p, n); c.traits[n] = p.traits;
     }
   }
-  const minSquad = () => (save.firstWindow ? MARKET.MIN_FIRST : MARKET.MIN_SQUAD);
+  const minSquad = () => MARKET.MIN_SQUAD; // tanpa syarat skuad 8 di musim pertama
   // cek skuad: jumlah, semua posisi terisi (posisi asli), susunan inti lengkap & kiper di gawang
   function squadIssues(c, min = minSquad()) {
     const out = [];
@@ -609,7 +608,6 @@ const League = (() => {
     save.news = save.news.filter(n => n.startsWith(me.name)).slice(0, 20);
     for (const c of shuffle(save.clubs.filter(x => x.id !== save.user))) aiTransfers(c);
     save.window = false;
-    save.firstWindow = false;
     persist();
     tab = 'shop';
     showHub();
@@ -1498,7 +1496,7 @@ const League = (() => {
     const me = club(save.user), issues = squadIssues(me);
     return `<div class="nc-title">Jendela Transfer · Pra-musim ${seasonName(save.year)}</div>
       <p class="nc-sub">Beli/jual pemain dan atur pemain inti di tab <b>Skuad Saya</b> & <b>Toko Pemain</b>.
-        Skuad ${MARKET.MIN_SQUAD}–${MARKET.MAX_SQUAD} pemain${save.firstWindow ? `, <b>musim pertama wajib ${MARKET.MIN_FIRST} pemain</b> (beli 2 cadangan)` : ''}.
+        Skuad ${MARKET.MIN_SQUAD}–${MARKET.MAX_SQUAD} pemain (cadangan opsional).
         Transfer hanya bisa sekarang, sebelum musim dimulai. Klub komputer bertransaksi setelah kamu memulai musim.</p>
       <div class="win-stat"><span>Skuad <b>${me.roster.length}/${MARKET.MAX_SQUAD}</b></span><span>Uang <b>${fmtM(me.money)}</b></span></div>
       ${issues.length ? `<ul class="win-issues">${issues.map(x => `<li>⚠️ ${h(x)}</li>`).join('')}</ul>` : '<p class="nc-sub ok">✅ Skuad siap.</p>'}
