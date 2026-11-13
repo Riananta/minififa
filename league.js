@@ -91,42 +91,101 @@ const League = (() => {
     mun: { 7: ['pas'], 11: ['dri'] },
     acm: { 11: ['pas'], 9: ['dri'] },
   };
-  // Pemain toko (pasar transfer) untuk liga Main Sendiri: [nama, posisi, tier, ciri]
+  // Pemain toko (pasar transfer) untuk liga Main Sendiri: [nama, posisi, tier, umur, ciri, potensi]
+  // potensi (tersembunyi): '' biasa, 'T' tinggi, 'ST' sangat tinggi. Umur = awal musim 2026/27.
   const SHOP_DATA = [
     // kiper
-    ['Emiliano Martínez', 'GK', 'S', []], ['Ter Stegen', 'GK', 'A', []], ['Ederson', 'GK', 'A', []],
-    ['Onana', 'GK', 'B', []], ['Vicario', 'GK', 'B', []], ['Pickford', 'GK', 'B', []], ['Szczęsny', 'GK', 'B', []],
-    ['Mamardashvili', 'GK', 'B', []], ['Lunin', 'GK', 'C', []], ['Audero', 'GK', 'C', []],
+    ['Emiliano Martínez', 'GK', 'S', 34, [], ''], ['Ter Stegen', 'GK', 'A', 34, [], ''], ['Ederson', 'GK', 'A', 33, [], ''],
+    ['Diogo Costa', 'GK', 'A', 27, [], ''], ['Unai Simón', 'GK', 'A', 29, [], ''], ['Onana', 'GK', 'B', 30, [], ''],
+    ['Vicario', 'GK', 'B', 30, [], ''], ['Pickford', 'GK', 'B', 32, [], ''], ['Szczęsny', 'GK', 'B', 36, [], ''],
+    ['Mamardashvili', 'GK', 'B', 26, [], ''], ['Verbruggen', 'GK', 'B', 24, [], 'T'], ['Svilar', 'GK', 'B', 27, [], ''],
+    ['Remiro', 'GK', 'B', 31, [], ''], ['Dean Henderson', 'GK', 'B', 29, [], ''], ['Safonov', 'GK', 'B', 27, [], ''],
+    ['Lunin', 'GK', 'C', 27, [], ''], ['Kepa', 'GK', 'C', 32, [], ''], ['Filip Jørgensen', 'GK', 'C', 24, [], ''],
     // bek
-    ['Nuno Mendes', 'DF', 'S', ['dri']], ['Rüdiger', 'DF', 'A', ['wal']], ['Militão', 'DF', 'A', []],
-    ['Theo Hernández', 'DF', 'A', ['dri']], ['Alphonso Davies', 'DF', 'A', ['dri']], ['Araujo', 'DF', 'A', ['wal']],
-    ['Akanji', 'DF', 'A', []], ['Konaté', 'DF', 'A', ['wal']], ['Timber', 'DF', 'A', []], ['Pacho', 'DF', 'A', ['wal']],
-    ['Tah', 'DF', 'A', []], ['Hincapié', 'DF', 'A', []], ['Cucurella', 'DF', 'A', []], ['Dumfries', 'DF', 'A', []],
-    ['Carvajal', 'DF', 'B', []], ['Balde', 'DF', 'B', []], ['Robertson', 'DF', 'B', ['pas']], ['Lisandro Martínez', 'DF', 'B', []],
-    ['Calafiori', 'DF', 'B', []], ['Pavard', 'DF', 'B', []], ['Gatti', 'DF', 'B', []], ['Rrahmani', 'DF', 'B', []],
-    ['Mazraoui', 'DF', 'B', []], ['Idzes', 'DF', 'B', []], ['Diks', 'DF', 'B', []],
-    ['Verdonk', 'DF', 'C', []], ['Hilgers', 'DF', 'C', []], ['Rizky Ridho', 'DF', 'C', []],
+    ['Nuno Mendes', 'DF', 'S', 24, ['dri'], ''], ['Rüdiger', 'DF', 'A', 33, ['wal'], ''], ['Militão', 'DF', 'A', 28, [], ''],
+    ['Theo Hernández', 'DF', 'A', 29, ['dri'], ''], ['Alphonso Davies', 'DF', 'A', 26, ['dri'], ''], ['Araujo', 'DF', 'A', 27, ['wal'], ''],
+    ['Akanji', 'DF', 'A', 31, [], ''], ['Konaté', 'DF', 'A', 27, ['wal'], ''], ['Timber', 'DF', 'A', 25, [], ''],
+    ['Pacho', 'DF', 'A', 25, ['wal'], ''], ['Tah', 'DF', 'A', 30, [], ''], ['Hincapié', 'DF', 'A', 24, [], ''],
+    ['Cucurella', 'DF', 'A', 28, [], ''], ['Dumfries', 'DF', 'A', 30, [], ''], ['Van de Ven', 'DF', 'A', 25, [], ''],
+    ['Cristian Romero', 'DF', 'A', 28, ['wal'], ''], ['Guéhi', 'DF', 'A', 26, [], ''], ['Pedro Porro', 'DF', 'A', 27, ['pas'], ''],
+    ['Carvajal', 'DF', 'B', 34, [], ''], ['Balde', 'DF', 'B', 23, [], ''], ['Robertson', 'DF', 'B', 32, ['pas'], ''],
+    ['Lisandro Martínez', 'DF', 'B', 28, [], ''], ['Calafiori', 'DF', 'B', 24, [], ''], ['Pavard', 'DF', 'B', 30, [], ''],
+    ['Gatti', 'DF', 'B', 28, [], ''], ['Rrahmani', 'DF', 'B', 32, [], ''], ['Mazraoui', 'DF', 'B', 29, [], ''],
+    ['Jorrel Hato', 'DF', 'B', 20, [], 'ST'], ['Lewis-Skelly', 'DF', 'B', 19, [], 'T'], ['Udogie', 'DF', 'B', 23, [], ''],
+    ['Aké', 'DF', 'B', 31, [], ''], ['Stones', 'DF', 'B', 32, [], ''], ['Hiroki Ito', 'DF', 'B', 27, [], ''],
+    ['Guerreiro', 'DF', 'B', 32, [], ''], ['Lucas Hernández', 'DF', 'B', 30, [], ''], ['Zabarnyi', 'DF', 'B', 24, [], ''],
+    ['Ferland Mendy', 'DF', 'B', 31, [], ''], ['Álvaro Carreras', 'DF', 'B', 23, [], 'T'], ['Christensen', 'DF', 'B', 30, [], ''],
+    ['Eric García', 'DF', 'B', 25, [], ''], ['Van Hecke', 'DF', 'B', 26, [], ''], ['Stanišić', 'DF', 'B', 26, [], ''],
+    ['Waldemar Anton', 'DF', 'B', 29, [], ''], ['Thiaw', 'DF', 'B', 25, [], ''], ['Kalulu', 'DF', 'B', 26, [], ''],
+    ['Ben White', 'DF', 'B', 29, [], ''], ['Gusto', 'DF', 'B', 23, [], ''], ['Chalobah', 'DF', 'B', 27, [], ''],
+    ['Dorgu', 'DF', 'B', 22, [], 'T'], ['Branthwaite', 'DF', 'B', 24, [], ''], ['Lukeba', 'DF', 'B', 23, [], 'T'],
+    ['Kerkez', 'DF', 'B', 23, [], ''], ['Aït-Nouri', 'DF', 'B', 25, [], ''], ['Leny Yoro', 'DF', 'C', 20, [], 'ST'],
+    ['Kyle Walker', 'DF', 'C', 36, [], ''], ['Lucas Beraldo', 'DF', 'C', 22, [], ''], ['Raúl Asencio', 'DF', 'C', 23, [], ''],
+    ['Gerard Martín', 'DF', 'C', 24, [], ''], ['Ayden Heaven', 'DF', 'C', 20, [], 'T'],
     // gelandang
-    ['Vinícius Jr', 'MF', 'S', ['dri']], ['Musiala', 'MF', 'S', ['dri']], ['Ødegaard', 'MF', 'S', ['pas']],
-    ['Mac Allister', 'MF', 'S', ['pas']], ['Caicedo', 'MF', 'S', []], ['João Neves', 'MF', 'S', []],
-    ['Frenkie de Jong', 'MF', 'S', ['pas']], ['Messi', 'MF', 'A', ['pas', 'dri']], ['Neymar', 'MF', 'A', ['dri']],
-    ['Gavi', 'MF', 'A', []], ['Fermín López', 'MF', 'A', []], ['Dani Olmo', 'MF', 'A', []], ['Camavinga', 'MF', 'A', []],
-    ['Tchouaméni', 'MF', 'A', []], ['Arda Güler', 'MF', 'A', ['pas']], ['Rodrygo', 'MF', 'A', ['dri']],
-    ['Bernardo Silva', 'MF', 'A', ['pas']], ['Foden', 'MF', 'A', []], ['Doku', 'MF', 'A', ['dri']],
-    ['Szoboszlai', 'MF', 'A', []], ['Gravenberch', 'MF', 'A', []], ['Désiré Doué', 'MF', 'A', ['dri']], ['Mbeumo', 'MF', 'A', []],
-    ['Martinelli', 'MF', 'B', []], ['Trossard', 'MF', 'B', []], ['Gnabry', 'MF', 'B', []], ['Kudus', 'MF', 'B', []],
-    ['Fabián Ruiz', 'MF', 'B', []], ['Zaïre-Emery', 'MF', 'B', []], ['Mount', 'MF', 'B', []], ['Mainoo', 'MF', 'B', []],
-    ['Frattesi', 'MF', 'B', []],
+    ['Vinícius Jr', 'MF', 'S', 26, ['dri'], ''], ['Musiala', 'MF', 'S', 23, ['dri'], ''], ['Ødegaard', 'MF', 'S', 28, ['pas'], ''],
+    ['Mac Allister', 'MF', 'S', 28, ['pas'], ''], ['Caicedo', 'MF', 'S', 25, [], ''], ['João Neves', 'MF', 'S', 22, [], ''],
+    ['Frenkie de Jong', 'MF', 'S', 29, ['pas'], ''], ['Messi', 'MF', 'A', 39, ['pas', 'dri'], ''], ['Neymar', 'MF', 'A', 34, ['dri'], ''],
+    ['Gavi', 'MF', 'A', 22, [], ''], ['Fermín López', 'MF', 'A', 23, [], ''], ['Dani Olmo', 'MF', 'A', 28, [], ''],
+    ['Camavinga', 'MF', 'A', 24, [], ''], ['Tchouaméni', 'MF', 'A', 26, [], ''], ['Arda Güler', 'MF', 'A', 21, ['pas'], 'ST'],
+    ['Rodrygo', 'MF', 'A', 25, ['dri'], ''], ['Bernardo Silva', 'MF', 'A', 32, ['pas'], ''], ['Foden', 'MF', 'A', 26, [], ''],
+    ['Doku', 'MF', 'A', 24, ['dri'], ''], ['Szoboszlai', 'MF', 'A', 26, [], ''], ['Gravenberch', 'MF', 'A', 24, [], ''],
+    ['Désiré Doué', 'MF', 'A', 21, ['dri'], 'ST'], ['Mbeumo', 'MF', 'A', 27, [], ''], ['Xavi Simons', 'MF', 'A', 23, ['dri'], 'T'],
+    ['Bruno Guimarães', 'MF', 'A', 28, ['pas'], ''], ['Tonali', 'MF', 'A', 26, [], ''], ['Zubimendi', 'MF', 'A', 27, ['pas'], ''],
+    ['Merino', 'MF', 'A', 30, [], ''], ['Kulusevski', 'MF', 'A', 26, [], ''], ['Barcola', 'MF', 'A', 24, ['dri'], ''],
+    ['Aleksandar Pavlović', 'MF', 'A', 22, ['pas'], 'T'], ['Martinelli', 'MF', 'B', 25, [], ''], ['Trossard', 'MF', 'B', 32, [], ''],
+    ['Gnabry', 'MF', 'B', 31, [], ''], ['Kudus', 'MF', 'B', 26, [], ''], ['Fabián Ruiz', 'MF', 'B', 30, [], ''],
+    ['Zaïre-Emery', 'MF', 'B', 20, [], 'T'], ['Mount', 'MF', 'B', 27, [], ''], ['Mainoo', 'MF', 'B', 21, [], 'T'],
+    ['Frattesi', 'MF', 'B', 27, [], ''], ['Nico Paz', 'MF', 'B', 22, ['pas'], 'ST'], ['Estêvão', 'MF', 'B', 19, ['dri'], 'ST'],
+    ['Franco Mastantuono', 'MF', 'B', 19, [], 'ST'], ['Savinho', 'MF', 'B', 22, ['dri'], 'T'], ['Ethan Nwaneri', 'MF', 'B', 19, [], 'T'],
+    ['Lucas Bergvall', 'MF', 'B', 20, [], 'T'], ['Rico Lewis', 'MF', 'B', 21, [], ''], ['Adam Wharton', 'MF', 'B', 22, ['pas'], 'T'],
+    ['Carlos Baleba', 'MF', 'B', 22, [], 'T'], ['Jamie Gittens', 'MF', 'B', 22, ['dri'], 'T'], ['Ben Seghir', 'MF', 'B', 21, [], ''],
+    ['El Khannouss', 'MF', 'B', 22, [], ''], ['Kovačić', 'MF', 'B', 32, [], ''], ['Sané', 'MF', 'B', 30, [], ''],
+    ['Coman', 'MF', 'B', 30, [], ''], ['Goretzka', 'MF', 'B', 31, [], ''], ['Koopmeiners', 'MF', 'B', 28, [], ''],
+    ['Gündoğan', 'MF', 'C', 36, ['pas'], ''], ['Mkhitaryan', 'MF', 'C', 37, [], ''], ['Casemiro', 'MF', 'C', 34, [], ''],
+    ['Claudio Echeverri', 'MF', 'C', 20, [], 'T'], ['Lennart Karl', 'MF', 'C', 18, [], 'ST'], ['Rodrigo Mora', 'MF', 'C', 19, [], 'T'],
+    ['Geovany Quenda', 'MF', 'C', 19, [], 'T'], ['Ayyoub Bouaddi', 'MF', 'C', 19, [], 'T'],
     // penyerang
-    ['Osimhen', 'FW', 'S', ['fin']], ['Cristiano Ronaldo', 'FW', 'A', ['fin']], ['Lewandowski', 'FW', 'A', ['fin']],
-    ['Ollie Watkins', 'FW', 'A', []], ['Marcus Thuram', 'FW', 'A', []], ['Hugo Ekitiké', 'FW', 'A', []],
-    ['Vlahović', 'FW', 'B', []], ['Sørloth', 'FW', 'B', []], ['Darwin Núñez', 'FW', 'B', []], ['Gakpo', 'FW', 'B', []],
-    ['Nicolas Jackson', 'FW', 'B', []], ['Nkunku', 'FW', 'B', []], ['Kolo Muani', 'FW', 'B', []], ['Gonçalo Ramos', 'FW', 'B', []],
-    ['Retegui', 'FW', 'B', []], ['Lukaku', 'FW', 'B', []], ['Openda', 'FW', 'B', []], ['Mateta', 'FW', 'B', []],
-    ['Solanke', 'FW', 'B', []], ['Dovbyk', 'FW', 'B', []], ['Kean', 'FW', 'B', []], ['Endrick', 'FW', 'B', []],
-    ['Rashford', 'FW', 'B', []], ['Garnacho', 'FW', 'B', []], ['Delap', 'FW', 'B', []], ['Ole Romeny', 'FW', 'B', []],
-    ['Morata', 'FW', 'C', []], ['Füllkrug', 'FW', 'C', []], ['Taremi', 'FW', 'C', []], ['Zirkzee', 'FW', 'C', []], ['Joselu', 'FW', 'C', []],
+    ['Osimhen', 'FW', 'S', 28, ['fin'], ''], ['Cristiano Ronaldo', 'FW', 'A', 41, ['fin'], ''], ['Lewandowski', 'FW', 'A', 38, ['fin'], ''],
+    ['Ollie Watkins', 'FW', 'A', 31, [], ''], ['Marcus Thuram', 'FW', 'A', 29, [], ''], ['Hugo Ekitiké', 'FW', 'A', 24, [], 'T'],
+    ['Luis Díaz', 'FW', 'A', 29, ['dri'], ''], ['Lookman', 'FW', 'A', 28, [], ''], ['Havertz', 'FW', 'A', 27, [], ''],
+    ['Nico Williams', 'FW', 'A', 24, ['dri'], ''], ['Oyarzabal', 'FW', 'A', 29, ['fin'], ''], ['Griezmann', 'FW', 'A', 35, ['pas'], ''],
+    ['Vlahović', 'FW', 'B', 26, [], ''], ['Sørloth', 'FW', 'B', 31, [], ''], ['Darwin Núñez', 'FW', 'B', 27, [], ''],
+    ['Gakpo', 'FW', 'B', 27, [], ''], ['Nicolas Jackson', 'FW', 'B', 25, [], ''], ['Nkunku', 'FW', 'B', 29, [], ''],
+    ['Kolo Muani', 'FW', 'B', 28, [], ''], ['Gonçalo Ramos', 'FW', 'B', 25, [], ''], ['Retegui', 'FW', 'B', 27, [], ''],
+    ['Lukaku', 'FW', 'B', 33, [], ''], ['Openda', 'FW', 'B', 26, [], ''], ['Mateta', 'FW', 'B', 29, [], ''],
+    ['Solanke', 'FW', 'B', 29, [], ''], ['Dovbyk', 'FW', 'B', 29, [], ''], ['Kean', 'FW', 'B', 26, [], ''],
+    ['Endrick', 'FW', 'B', 20, [], 'ST'], ['Rashford', 'FW', 'B', 29, [], ''], ['Garnacho', 'FW', 'B', 22, ['dri'], ''],
+    ['Delap', 'FW', 'B', 23, [], ''], ['Santiago Giménez', 'FW', 'B', 25, [], ''], ['Mathys Tel', 'FW', 'B', 21, [], 'T'],
+    ['Samu Omorodion', 'FW', 'B', 22, [], 'T'], ['Jhon Durán', 'FW', 'B', 22, [], ''], ['Igor Thiago', 'FW', 'B', 25, [], ''],
+    ['Woltemade', 'FW', 'B', 24, [], ''], ['Burkardt', 'FW', 'B', 26, [], ''], ['Boniface', 'FW', 'B', 25, [], ''],
+    ['Dybala', 'FW', 'B', 32, ['pas'], ''], ['Benzema', 'FW', 'B', 38, ['fin'], ''], ['Gabriel Jesus', 'FW', 'B', 29, [], ''],
+    ['Son Heung-min', 'FW', 'B', 34, [], ''], ['Ferran Torres', 'FW', 'B', 26, [], ''], ['Iñaki Williams', 'FW', 'B', 32, [], ''],
+    ['Morata', 'FW', 'C', 34, [], ''], ['Füllkrug', 'FW', 'C', 33, [], ''], ['Taremi', 'FW', 'C', 34, [], ''],
+    ['Zirkzee', 'FW', 'C', 25, [], ''], ['Joselu', 'FW', 'C', 36, [], ''], ['Evan Ferguson', 'FW', 'C', 21, [], ''],
+    ['Francesco Camarda', 'FW', 'C', 18, [], 'ST'], ['Chido Obi', 'FW', 'C', 19, [], 'T'], ['Marc Guiu', 'FW', 'C', 20, [], ''],
+    ['Calvert-Lewin', 'FW', 'C', 29, [], ''], ['Immobile', 'FW', 'C', 36, [], ''], ['Džeko', 'FW', 'C', 40, [], ''],
+    ['Vitor Roque', 'FW', 'C', 21, [], ''],
   ];
+  // umur pemain inti klub (urutan slot 1, 2, 4, 7, 11, 9)
+  const CLUB_AGES = {
+    rma: [34, 28, 21, 28, 23, 27], // Courtois, Alexander-Arnold, Huijsen, Valverde, Bellingham, Mbappé
+    mci: [27, 29, 24, 30, 28, 26], // Donnarumma, Rúben Dias, Gvardiol, Rodri, Reijnders, Haaland
+    liv: [34, 25, 35, 34, 23, 27], // Alisson, Frimpong, Van Dijk, Salah, Wirtz, Isak
+    ars: [31, 25, 28, 25, 27, 28], // Raya, Saliba, Gabriel, Saka, Rice, Gyökeres
+    bay: [40, 28, 30, 25, 31, 33], // Neuer, Upamecano, Kim Min-jae, Olise, Kimmich, Kane
+    bar: [25, 28, 19, 19, 24, 30], // Joan García, Koundé, Cubarsí, Lamine Yamal, Pedri, Raphinha
+    psg: [25, 28, 32, 26, 25, 29], // Chevalier, Hakimi, Marquinhos, Vitinha, Kvaratskhelia, Dembélé
+    int: [38, 29, 27, 29, 32, 29], // Sommer, Dimarco, Bastoni, Barella, Çalhanoğlu, Lautaro
+    atm: [33, 31, 31, 25, 23, 26], // Oblak, Llorente, Giménez, Baena, Barrios, Julián Álvarez
+    che: [29, 27, 23, 24, 25, 25], // Sánchez, Reece James, Colwill, Palmer, Enzo, João Pedro
+    lev: [33, 31, 27, 29, 32, 30], // Flekken, Grimaldo, Tapsoba, Aleix García, Andrich, Schick
+    nap: [29, 33, 27, 30, 35, 23], // Meret, Di Lorenzo, Buongiorno, McTominay, De Bruyne, Højlund
+    juv: [29, 26, 29, 21, 28, 26], // Di Gregorio, Cambiaso, Bremer, Yıldız, Locatelli, Jonathan David
+    bvb: [29, 28, 26, 24, 21, 30], // Kobel, Ryerson, Schlotterbeck, Adeyemi, J. Bellingham, Guirassy
+    mun: [24, 27, 27, 32, 27, 23], // Lammens, Dalot, De Ligt, Bruno F., Cunha, Šeško
+    acm: [31, 28, 27, 28, 41, 27], // Maignan, Tomori, Gabbia, Pulisic, Modrić, Leão
+  };
   // Ekonomi (dalam juta). Juara liga + piala 3 musim beruntun ~ 70 jt = 1 pemain S termurah.
   const MARKET = {
     START_MONEY: 10, MIN_SQUAD: 6, MIN_FIRST: 8, MAX_SQUAD: 10, SELL_RATE: 0.4,
@@ -171,7 +230,70 @@ const League = (() => {
   const fmtM = v => (Math.round(v * 10) / 10).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' jt';
   const TIER_DOWN = { S: 'A', A: 'B', B: 'C', C: 'D', D: 'D' };
   const SLOT_LABEL = { 1: 'KIP', 2: 'BEK', 4: 'BEK', 7: 'GEL', 11: 'GEL', 9: 'PEN' };
-  const price = p => Math.round(MARKET.PRICE[p.tier] * (1 + MARKET.TRAIT_BONUS * p.traits.length) * 10) / 10;
+  /* ---------- umur & perkembangan pemain (hanya liga Main Sendiri) ---------- */
+  // nilai tersembunyi (OVR) menentukan tier: C < 65, B 65-74, A 75-84, S >= 85
+  const OVR_BASE = { S: 88, A: 79, B: 70, C: 60 };
+  const tierOf = o => (o >= 85 ? 'S' : o >= 75 ? 'A' : o >= 65 ? 'B' : 'C');
+  const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const AGE = { MAX: 45, RESET: 17 };
+  // faktor lain: performa musim (rata-rata rating), jarang main (pemain muda tumbuh lebih lambat), acak per pemain
+  const DEV = { GOOD: 7.3, BAD: 6.2, MIN_APPS: 8, BENCH_GROWTH: 0.5, RAND: 2 };
+  // perubahan OVR per musim menurut umur; kiper: kurva bergeser 3 tahun (puncak & menurun lebih lambat)
+  function ageDelta(age, role) {
+    const a = role === 'GK' ? age - 3 : age;
+    if (a <= 20) return 4;
+    if (a <= 23) return 3;
+    if (a <= 26) return 1;
+    if (a <= 30) return rint(0, 1); // usia emas
+    if (a <= 32) return -1;
+    if (a <= 34) return -2;
+    if (a <= 36) return -3;
+    return -4;
+  }
+  // potensi = batas atas OVR (tersembunyi dari pemain)
+  function initPotential(ovr, age, pot) {
+    if (pot === 'ST') return Math.max(ovr + 10, rint(88, 94));
+    if (pot === 'T') return Math.max(ovr + 6, rint(82, 88));
+    if (age <= 23) return ovr + rint(3, 9);
+    return ovr + rint(0, 4);
+  }
+  // pemain yang "lahir kembali" di umur 17: potensi diundi ulang
+  const rollYouthPot = () => { const r = Math.random(); return r < 0.15 ? rint(85, 93) : r < 0.5 ? rint(75, 84) : rint(64, 74); };
+  function makePlayer(id, name, role, tier, age, traits, pot, clubId) {
+    const ovr = OVR_BASE[tier] + rint(-2, 2);
+    return { id, name, role, tier, traits, club: clubId, age, ovr, pot: initPotential(ovr, age, pot) };
+  }
+  // dipanggil sekali di akhir musim: umur +1, OVR berubah, tier menyesuaikan
+  function developPlayers() {
+    const st = {};
+    for (const c of save.clubs) Object.assign(st, clubPlayerStats(c.id));
+    const changes = [];
+    for (const p of Object.values(save.players)) {
+      const before = p.tier, age = p.age;
+      p.age++;
+      if (p.age >= AGE.MAX) {
+        p.age = AGE.RESET; p.ovr = rint(56, 60); p.pot = rollYouthPot(); p.tier = tierOf(p.ovr);
+        changes.push({ id: p.id, from: before, to: p.tier, reborn: true });
+        continue;
+      }
+      const x = st[p.id], played = x && x.apps >= DEV.MIN_APPS;
+      let d = ageDelta(age, p.role);
+      if (d > 0 && !played) d = Math.round(d * DEV.BENCH_GROWTH);
+      if (played) d += x.avg >= DEV.GOOD ? 1 : x.avg <= DEV.BAD ? -1 : 0;
+      d += rint(-DEV.RAND, DEV.RAND);
+      let o = p.ovr + d;
+      if (d > 0) o = Math.min(o, Math.max(p.ovr, p.pot)); // tidak bisa melewati potensi
+      p.ovr = Math.max(40, Math.min(99, o));
+      p.tier = tierOf(p.ovr);
+      if (p.tier !== before) changes.push({ id: p.id, from: before, to: p.tier });
+    }
+    for (const c of save.clubs) if (c.lineup) syncClub(c);
+    return changes;
+  }
+  // harga: tier, ciri, umur & (untuk pemain muda) ruang berkembang
+  const ageFactor = a => (a <= 21 ? 1.3 : a <= 25 ? 1.15 : a <= 29 ? 1 : a <= 32 ? 0.8 : a <= 35 ? 0.6 : 0.5);
+  const potFactor = p => (p.age <= 25 ? 1 + 0.03 * Math.max(0, Math.min(20, p.pot - p.ovr)) : 1);
+  const price = p => Math.round(MARKET.PRICE[p.tier] * (1 + MARKET.TRAIT_BONUS * p.traits.length) * (p.age ? ageFactor(p.age) * potFactor(p) : 1) * 10) / 10;
   const sellPrice = p => Math.round(price(p) * MARKET.SELL_RATE * 10) / 10;
   const r2 = v => Math.round(v * 100) / 100; // hindari galat desimal pada uang
   // tier efektif: di luar posisi asli turun 1 tingkat
@@ -186,14 +308,14 @@ const League = (() => {
       c.roster = []; c.lineup = {}; c.money = MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0 };
       for (const n of NUMS) {
         const id = c.id + '-' + n;
-        save.players[id] = { id, name: SQUADS[c.id][n], role: ROLE_OF[n], tier: TIERS[c.id][n], traits: (TRAIT_DATA[c.id] || {})[n] || [], club: c.id };
+        save.players[id] = makePlayer(id, SQUADS[c.id][n], ROLE_OF[n], TIERS[c.id][n], CLUB_AGES[c.id][NUMS.indexOf(n)], (TRAIT_DATA[c.id] || {})[n] || [], '', c.id);
         c.roster.push(id); c.lineup[n] = id;
       }
       syncClub(c);
     }
-    SHOP_DATA.forEach(([name, role, tier, traits], i) => {
+    SHOP_DATA.forEach(([name, role, tier, age, traits, pot], i) => {
       const id = 's' + (i + 1);
-      save.players[id] = { id, name, role, tier, traits, club: null };
+      save.players[id] = makePlayer(id, name, role, tier, age, traits, pot, null);
     });
     save.window = true;      // jendela transfer pra-musim terbuka
     save.soldBy = {};
@@ -374,7 +496,15 @@ const League = (() => {
     if (save && !save.difficulty) save.difficulty = 'hard';
     // karier lama = mode Main Sendiri
     if (save && !save.mode) save.mode = 'solo';
-    if (save && save.market) for (const c of save.clubs) if (c.lineup) repairLineup(c);
+    if (save && save.market) {
+      const ages = {};
+      SHOP_DATA.forEach(d => { ages[d[0]] = d[3]; });
+      for (const c of CLUBS) NUMS.forEach((n, i) => { ages[SQUADS[c.id][n]] = CLUB_AGES[c.id][i]; });
+      for (const p of Object.values(save.players)) if (p.age == null) {
+        p.age = ages[p.name] || 27; p.ovr = OVR_BASE[p.tier] || 60; p.pot = initPotential(p.ovr, p.age, '');
+      }
+      for (const c of save.clubs) if (c.lineup) repairLineup(c);
+    }
     return save;
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* abaikan */ } }
@@ -774,6 +904,21 @@ const League = (() => {
     if (save.next >= save.events.length) endSeason();
   }
 
+  // ringkasan perkembangan pemain di akhir musim
+  function devCard(dev) {
+    const up = x => TV[x.to] > TV[x.from];
+    const line = x => `<div>${x.reborn ? '🔄' : up(x) ? '📈' : '📉'} <b>${h(x.name)}</b> <small class="muted">(${x.age} th${x.club && x.club !== save.user ? ` · ${h(club(x.club).name)}` : ''})</small>
+      ${tierBadge(x.from)} → ${tierBadge(x.to)}${x.reborn ? ' <small class="muted">kembali ke umur 17</small>' : ''}</div>`;
+    const mine = dev.filter(x => x.club === save.user);
+    const others = dev.filter(x => x.club && x.club !== save.user && (x.to === 'S' || x.from === 'S' || x.reborn)).slice(0, 10);
+    const shopUp = dev.filter(x => !x.club && up(x)).length, shopDown = dev.filter(x => !x.club && !up(x)).length;
+    return `<h4 class="aw-h">🧬 Perkembangan Pemain</h4><div class="dev-box">
+      <div class="dev-sub">${h(club(save.user).name)}</div>
+      ${mine.length ? mine.map(line).join('') : '<div class="muted">Tidak ada pemainmu yang berubah tier.</div>'}
+      ${others.length ? `<div class="dev-sub">Sorotan klub lain</div>${others.map(line).join('')}` : ''}
+      <div class="muted dev-shop">Toko: ${shopUp} pemain naik tier, ${shopDown} turun tier.</div></div>`;
+  }
+
   function endSeason() {
     const table = standings();
     const final = save.events.find(e => e.type === 'cup' && e.round === 3).matches[0];
@@ -812,6 +957,8 @@ const League = (() => {
       entry.prize = prize;
       // simpan statistik pemain musim ini (dilihat saat jendela transfer berikutnya)
       save.lastStats = { season: seasonName(save.year), stats: clubPlayerStats(save.user) };
+      // umur bertambah & atribut berkembang/menurun
+      entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
     }
     persist();
     const L = club(entry.league), C = club(entry.cup);
@@ -822,6 +969,7 @@ const League = (() => {
       ${entry.topScorer ? `<div class="champ-row"><span>👟 Top Skor</span><b>${h(entry.topScorer.name)} <small>(${h(club(entry.topScorer.c).name)}) · ${entry.topScorer.n} gol</small></b></div>` : ''}
       ${entry.topAssist ? `<div class="champ-row"><span>🎯 Top Assist</span><b>${h(entry.topAssist.name)} <small>(${h(club(entry.topAssist.c).name)}) · ${entry.topAssist.n} assist</small></b></div>` : ''}
       ${pots ? potsCard(pots) : ''}
+      ${entry.dev ? devCard(entry.dev) : ''}
       <h4 class="aw-h">⭐ Dream Team Musim Ini</h4>
       ${dreamPitch(entry.dream)}
       ${save.user ? `<p>${h(club(save.user).name)}: peringkat <b>${userPos}</b> di liga, piala: <b>${userCup}</b>.</p>` : ''}
@@ -1109,6 +1257,7 @@ const League = (() => {
     }; });
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
+    hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     if (el('btnAutoLineup')) el('btnAutoLineup').onclick = () => { autoLineup(club(save.user)); persist(); showHub(); };
     if (el('btnCloseWindow')) el('btnCloseWindow').onclick = () => closeWindow();
     const sim = el('btnSimEvent');
@@ -1136,8 +1285,10 @@ const League = (() => {
   const gradeCell = (v, key) => `<td><span class="ag g${grade(v).replace('+', 'p')}" title="${key}">${grade(v)}</span></td>`;
   const attrCells = p => ['sht', 'pas', 'def', 'ctl'].map(a => gradeCell(attr(p, a), a)).join('') + (p.role === 'GK' ? gradeCell(attr(p, 'kep'), 'kep') : '<td class="muted">-</td>');
   const tierBadge = t => `<span class="tier-b t${t}">${t}</span>`;
+  const ageCell = p => `<span class="age${p.age <= 21 ? ' young' : p.age >= 33 ? ' old' : ''}">${p.age}</span>`;
+  const AGE_FILTER = { all: () => true, u21: a => a <= 21, mid: a => a >= 22 && a <= 29, old: a => a >= 30 };
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
-  let shopRole = 'all', shopTier = 'all';
+  let shopRole = 'all', shopTier = 'all', shopAge = 'all';
 
   // jendela konfirmasi beli / jual pemain
   function confirmTrade(kind, c, p) {
@@ -1198,24 +1349,25 @@ const League = (() => {
     const bench = c.roster.filter(id => !inLineup(id)).map(P);
     const ms = myStats();
     const opt = (n, sel) => c.roster.map(P).filter(p => (p.role === 'GK') === (n === 1))
-      .map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${h(p.name)} (${ROLE_SHORT[p.role]} · ${p.tier})</option>`).join('');
+      .map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${h(p.name)} (${ROLE_SHORT[p.role]} · ${p.tier} · ${p.age} th)</option>`).join('');
     return `<div class="my-head"><span>💰 Uang <b>${fmtM(c.money)}</b></span><span>Skuad <b>${c.roster.length}/${MARKET.MAX_SQUAD}</b></span>
         <span>${save.window ? '🟢 Jendela transfer <b>terbuka</b>' : '🔒 Jendela transfer tutup (buka lagi sebelum musim berikutnya)'}</span>
         <button class="btn sm" id="btnAutoLineup">⚡ Susun otomatis</button></div>
       <h4 class="aw-h">Pemain Inti <small class="muted st-label">· statistik ${h(ms.label)} (liga + piala)</small></h4>
-      <div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th>Posisi</th><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
+      <div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th>Posisi</th><th class="l">Pemain</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
         <th class="st-h" title="Jumlah main">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h" title="Rata-rata rating">Rating</th></tr></thead><tbody>
       ${NUMS.map(n => { const p = P(c.lineup[n]), et = effTier(p, n), off = p.role !== ROLE_OF[n];
         const pp = { ...p, role: ROLE_OF[n], tier: et };
         return `<tr><td><b>${SLOT_LABEL[n]}</b></td>
           <td class="l"><select data-slot="${n}">${opt(n, p.id)}</select> ${traitIcons(p)}${off ? ` <small class="warn" title="Bermain di luar posisi: tier turun 1">⚠️ luar posisi</small>` : ''}</td>
-          <td>${tierBadge(et)}</td>${attrCells(pp)}${statCells(ms.st[p.id])}</tr>`; }).join('')}
+          <td>${ageCell(p)}</td><td>${tierBadge(et)}</td>${attrCells(pp)}${statCells(ms.st[p.id])}</tr>`; }).join('')}
       </tbody></table></div>
-      <p class="muted sq-note">Pilih pemain untuk tiap posisi (memilih pemain dari posisi lain = tukar). Bermain di luar posisi asli: tier turun 1. Posisi kiper hanya untuk kiper.</p>
+      <p class="muted sq-note">Pilih pemain untuk tiap posisi (memilih pemain dari posisi lain = tukar). Bermain di luar posisi asli: tier turun 1. Posisi kiper hanya untuk kiper.
+        Tiap akhir musim umur +1: pemain muda bisa naik tier, pemain tua menurun (tiap pemain berbeda, juga dipengaruhi rating musim). Umur 45 → kembali ke 17 dengan tier C.</p>
       <h4 class="aw-h">Cadangan (${bench.length})</h4>
-      ${bench.length ? `<div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
+      ${bench.length ? `<div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
         <th class="st-h">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h">Rating</th><th>Jual</th></tr></thead><tbody>
-        ${bench.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(ms.st[p.id])}
+        ${bench.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(ms.st[p.id])}
           <td>${save.window ? `<button class="btn sm ghost" data-sell="${p.id}" ${canSell(c, p.id) ? '' : 'disabled'}>Jual ${fmtM(sellPrice(p))}</button>` : '<span class="muted">-</span>'}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Belum ada cadangan. Beli di tab Toko Pemain saat jendela transfer terbuka.</p>'}
       <h4 class="aw-h">Keuangan</h4>
@@ -1224,7 +1376,7 @@ const League = (() => {
 
   function shopTab() {
     const c = club(save.user);
-    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier))
+    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age))
       .sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
     const why = p => !save.window ? 'Jendela transfer tutup' : soldByMe(c, p.id) ? 'Baru kamu jual (tidak bisa dibeli lagi di jendela ini)'
       : c.roster.length >= MARKET.MAX_SQUAD ? 'Skuad penuh (10)' : c.money + 1e-9 < price(p) ? 'Uang tidak cukup' : '';
@@ -1233,13 +1385,14 @@ const League = (() => {
         <span>💰 <b>${fmtM(c.money)}</b> · Skuad ${c.roster.length}/${MARKET.MAX_SQUAD}${save.window ? '' : ' · 🔒 jendela transfer tutup'}</span>
         ${filt('frole', shopRole, [['all', 'Semua'], ['GK', 'Kiper'], ['DF', 'Bek'], ['MF', 'Gelandang'], ['FW', 'Penyerang']])}
         ${filt('ftier', shopTier, [['all', 'Semua tier'], ['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C']])}
+        ${filt('fage', shopAge, [['all', 'Semua umur'], ['u21', '≤21'], ['mid', '22–29'], ['old', '30+']])}
       </div>
-      <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th><th></th></tr></thead><tbody>
-      ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
+      <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th><th></th></tr></thead><tbody>
+      ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
         <td><b>${fmtM(price(p))}</b></td>
         <td>${why(p) ? `<small class="muted">${why(p)}</small>` : `<button class="btn sm primary" data-buy="${p.id}">Beli</button>`}</td></tr>`).join('')}
       </tbody></table></div>
-      <p class="muted sq-note">${list.length} pemain tersedia. Harga jual kembali ke toko hanya ${MARKET.SELL_RATE * 100}% dari harga toko.</p>
+      <p class="muted sq-note">${list.length} pemain tersedia. Harga dipengaruhi tier, ciri, umur & bakat (pemain muda berbakat lebih mahal). Harga jual kembali ke toko hanya ${MARKET.SELL_RATE * 100}% dari harga toko.</p>
       ${save.news.length ? `<h4 class="aw-h">Berita Transfer</h4><div class="news">${save.news.slice(0, 40).map(n => `<div>📰 ${h(n)}</div>`).join('')}</div>` : ''}`;
   }
 
@@ -1335,13 +1488,13 @@ const League = (() => {
       return `<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
         <div class="sq-grid">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
           <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small title="Dari tier 6 pemain inti">${stars(lineupStrength(c.id))}</small></div>
-          <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
+          <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th>${isMarket() ? '<th>Umur</th>' : ''}<th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
           ${NUMS.map(n => { const ps = pseudo(c.id, n), tr = (c.traits || {})[n] || [];
             return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
-              <td><span class="tier-b t${ps.tier}">${ps.tier}</span></td>
+              ${isMarket() && P(c.lineup[n]) ? `<td>${ageCell(P(c.lineup[n]))}</td>` : ''}<td><span class="tier-b t${ps.tier}">${ps.tier}</span></td>
               ${['sht', 'pas', 'def', 'ctl'].map(a => cell(attr(ps, a), a)).join('')}${ps.role === 'GK' ? cell(attr(ps, 'kep'), 'kep') : '<td class="muted">-</td>'}</tr>`; }).join('')}
           ${isMarket() ? c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P).map(p => `<tr class="bench-row"><td class="l"><small class="muted">Cad</small> ${h(p.name)} ${traitIcons(p)} <small class="muted">${ROLE_SHORT[p.role]}</small></td>
-              <td>${tierBadge(p.tier)}</td>${attrCells(p)}</tr>`).join('') : ''}
+              <td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}</tr>`).join('') : ''}
           </tbody></table></div>`).join('')}</div>`;
     }
     if (tab === 'cup') {
