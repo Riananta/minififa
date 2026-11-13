@@ -1446,7 +1446,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : isMarket() && save.window ? windowCard() : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
+        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan'], ['rank', '🏅 Ranking Klub'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -1478,6 +1478,10 @@ const League = (() => {
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
+    hub.querySelectorAll('[data-rsort]').forEach(b => { b.onclick = () => {
+      if (rankSort === b.dataset.rsort) rankAsc = !rankAsc; else { rankSort = b.dataset.rsort; rankAsc = false; }
+      showHub();
+    }; });
     const fs = el('findSearch');
     if (fs) fs.oninput = () => {
       findQuery = fs.value; const pos = fs.selectionStart;
@@ -1636,6 +1640,30 @@ const League = (() => {
       ${save.ledger.length ? `<div class="ledger">${save.ledger.slice(0, 15).map(l => `<div><span>${l.season} · ${h(l.label)}</span><b class="${l.amount < 0 ? 'neg' : 'pos'}">${l.amount < 0 ? '−' : '+'}${fmtM(Math.abs(l.amount))}</b></div>`).join('')}</div>` : '<p class="muted">Belum ada transaksi.</p>'}`;
   }
 
+  // Ranking klub: nilai skuad & jumlah trofi (dihitung dari riwayat musim, berlaku untuk karier lama)
+  let rankSort = 'total', rankAsc = false;
+  function rankTab() {
+    const D = isDiv(), M = isMarket();
+    const cols = [['value', 'Nilai skuad', M], ['league', D ? '🏆 Premiere' : '🏆 Liga', true], ['ch', '🥈 Championship', D], ['cup', '🥇 Piala', true], ['ucl', '⭐ UCL', D], ['total', 'Total trofi', true]]
+      .filter(c => c[2]);
+    if (!cols.some(c => c[0] === rankSort)) rankSort = 'total';
+    const rows = save.clubs.map(c => {
+      const r = { id: c.id, league: 0, ch: 0, cup: 0, ucl: 0 };
+      for (const x of save.history) for (const k of ['league', 'ch', 'cup', 'ucl']) if (x[k] === c.id) r[k]++;
+      r.total = r.league + r.ch + r.cup + r.ucl;
+      r.value = M ? r2(c.roster.reduce((a, id) => a + price(P(id)), 0)) : 0;
+      return r;
+    });
+    const dir = rankAsc ? -1 : 1;
+    rows.sort((a, b) => dir * (b[rankSort] - a[rankSort]) || b.total - a.total || b.value - a.value || club(a.id).name.localeCompare(club(b.id).name));
+    const cell = (r, k) => k === 'value' ? `<td>${fmtM(r.value)}</td>` : `<td>${r[k] ? `<b>${r[k]}</b>` : '<span class="muted">0</span>'}</td>`;
+    return `<p class="muted sq-note">Klik judul kolom untuk mengurutkan (klik lagi = kebalikannya). Trofi dihitung dari ${save.history.length} musim yang sudah selesai.${M ? ' Nilai skuad = total harga semua pemain klub saat ini.' : ''}</p>
+      <div class="tbl-wrap"><table class="tbl rank-tbl"><thead><tr><th>#</th><th class="l">Klub</th>${D ? '<th>Divisi</th>' : ''}
+        ${cols.map(([k, n]) => `<th class="sortable${rankSort === k ? ' on' : ''}" data-rsort="${k}">${n}${rankSort === k ? (rankAsc ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}"><td>${i + 1}</td><td class="l">${nameCell(r.id)}</td>
+        ${D ? `<td><small class="muted">${DIV_NAME[club(r.id).div]}</small></td>` : ''}${cols.map(([k]) => cell(r, k)).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }
+
   // Cari pemain di semua klub & toko: klub sekarang, posisi, umur, tier, atribut
   let findQuery = '';
   const FIND_MAX = 60;
@@ -1720,6 +1748,7 @@ const League = (() => {
     if ((tab === 'my' || tab === 'shop' || tab === 'find') && !isMarket()) tab = 'table';
     if (tab === 'my') return myTab();
     if (tab === 'find') return findTab();
+    if (tab === 'rank') return rankTab();
     if (tab === 'shop') return shopTab();
     if ((tab === 'ucl') && !isDiv()) tab = 'table';
     if (tab === 'table') {

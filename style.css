@@ -768,3 +768,6 @@ aside { display: grid; gap: 16px; }
 .plink.pi { font-size: 13px; opacity: .8; }
 .plink.pi:hover { text-decoration: none; opacity: 1; }
 .car-tbl td { padding: 5px 8px; }
+
+.rank-tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.rank-tbl th.sortable:hover, .rank-tbl th.sortable.on { color: #facc15; }
