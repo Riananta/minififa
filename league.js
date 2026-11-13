@@ -32,6 +32,25 @@ const League = (() => {
     { id: 'mun', name: 'Manchester Utd',  color: '#da291c', alt: '#1f2937', rating: 82 },
     { id: 'acm', name: 'AC Milan',        color: '#fb090b', alt: '#f1f5f9', rating: 82 },
   ];
+  // Divisi 2 (Championship) — liga Main Sendiri
+  const CLUBS2 = [
+    { id: 'tot', name: 'Tottenham', color: '#f8fafc', alt: '#1e3a8a', rating: 80 },
+    { id: 'nfc', name: 'Newcastle', color: '#111827', alt: '#f1f5f9', rating: 80 },
+    { id: 'avl', name: 'Aston Villa', color: '#7c2d4a', alt: '#7dd3fc', rating: 80 },
+    { id: 'rom', name: 'AS Roma', color: '#8b1a1a', alt: '#f59e0b', rating: 80 },
+    { id: 'ata', name: 'Atalanta', color: '#1e3a8a', alt: '#111827', rating: 80 },
+    { id: 'laz', name: 'Lazio', color: '#7dd3fc', alt: '#f1f5f9', rating: 80 },
+    { id: 'rso', name: 'Real Sociedad', color: '#2563eb', alt: '#f1f5f9', rating: 80 },
+    { id: 'ath', name: 'Athletic Club', color: '#dc2626', alt: '#f1f5f9', rating: 80 },
+    { id: 'vil', name: 'Villarreal', color: '#facc15', alt: '#1e3a8a', rating: 80 },
+    { id: 'ben', name: 'Benfica', color: '#e11d48', alt: '#f1f5f9', rating: 80 },
+    { id: 'por', name: 'FC Porto', color: '#1d4ed8', alt: '#f1f5f9', rating: 80 },
+    { id: 'scp', name: 'Sporting CP', color: '#16a34a', alt: '#f1f5f9', rating: 80 },
+    { id: 'aja', name: 'Ajax', color: '#f1f5f9', alt: '#dc2626', rating: 80 },
+    { id: 'psv', name: 'PSV', color: '#ef4444', alt: '#f1f5f9', rating: 80 },
+    { id: 'com', name: 'Como', color: '#0c4a9e', alt: '#f1f5f9', rating: 80 },
+    { id: 'rbl', name: 'RB Leipzig', color: '#be123c', alt: '#f1f5f9', rating: 80 },
+  ];
   // Pemain inti tiap klub, sesuai formasi game: 1 = kiper, 2 & 4 = bek, 7 & 11 = gelandang, 9 = penyerang.
   // Data dari pengetahuan hingga pertengahan 2026; transfer setelah itu belum tercakup. Bebas diedit.
   const SQUADS = {
@@ -51,6 +70,22 @@ const League = (() => {
     bvb: { 1: 'Kobel',      2: 'Ryerson',     4: 'Schlotterbeck', 7: 'Adeyemi',    11: 'J. Bellingham', 9: 'Guirassy' },
     mun: { 1: 'Lammens',    2: 'Dalot',       4: 'De Ligt',      7: 'Bruno F.',    11: 'Cunha',      9: 'Šeško' },
     acm: { 1: 'Maignan',    2: 'Tomori',      4: 'Gabbia',       7: 'Pulisic',     11: 'Modrić',     9: 'Leão' },
+    tot: { 1: 'Vicario', 2: 'Cristian Romero', 4: 'Van de Ven', 7: 'Xavi Simons', 11: 'Kudus', 9: 'Solanke' },
+    nfc: { 1: 'Pope', 2: 'Botman', 4: 'Livramento', 7: 'Bruno Guimarães', 11: 'Tonali', 9: 'Woltemade' },
+    avl: { 1: 'Emiliano Martínez', 2: 'Konsa', 4: 'Pau Torres', 7: 'Tielemans', 11: 'Morgan Rogers', 9: 'Ollie Watkins' },
+    rom: { 1: 'Svilar', 2: 'Gianluca Mancini', 4: 'Ndicka', 7: 'Manu Koné', 11: 'Dybala', 9: 'Dovbyk' },
+    ata: { 1: 'Carnesecchi', 2: 'Isak Hien', 4: 'Bellanova', 7: 'De Ketelaere', 11: 'Lookman', 9: 'Scamacca' },
+    laz: { 1: 'Provedel', 2: 'Romagnoli', 4: 'Mario Gila', 7: 'Rovella', 11: 'Zaccagni', 9: 'Castellanos' },
+    rso: { 1: 'Remiro', 2: 'Zubeldia', 4: 'Aihen Muñoz', 7: 'Kubo', 11: 'Brais Méndez', 9: 'Oyarzabal' },
+    ath: { 1: 'Unai Simón', 2: 'Dani Vivian', 4: 'Laporte', 7: 'Sancet', 11: 'Berenguer', 9: 'Nico Williams' },
+    vil: { 1: 'Luiz Júnior', 2: 'Foyth', 4: 'Renato Veiga', 7: 'Parejo', 11: 'Pépé', 9: 'Gerard Moreno' },
+    ben: { 1: 'Trubin', 2: 'António Silva', 4: 'Otamendi', 7: 'Aursnes', 11: 'Sudakov', 9: 'Pavlidis' },
+    por: { 1: 'Diogo Costa', 2: 'Bednarek', 4: 'Alberto Costa', 7: 'Alan Varela', 11: 'Gabri Veiga', 9: 'Samu Omorodion' },
+    scp: { 1: 'Rui Silva', 2: 'Gonçalo Inácio', 4: 'Diomande', 7: 'Hjulmand', 11: 'Trincão', 9: 'Luis Javier Suárez' },
+    aja: { 1: 'Jaroš', 2: 'Youri Baas', 4: 'Šutalo', 7: 'Kenneth Taylor', 11: 'Klaassen', 9: 'Weghorst' },
+    psv: { 1: 'Kovář', 2: 'Dest', 4: 'Flamingo', 7: 'Guus Til', 11: 'Perišić', 9: 'Ricardo Pepi' },
+    com: { 1: 'Butez', 2: 'Kempf', 4: 'Jacobo Ramón', 7: 'Perrone', 11: 'Caqueret', 9: 'Douvikas' },
+    rbl: { 1: 'Gulácsi', 2: 'Lukeba', 4: 'Raum', 7: 'Schlager', 11: 'Baumgartner', 9: 'Yan Diomande' },
   };
   // Tier pemain (S/A/B/C) relatif terhadap sesama 96 pemain ini, sesuai kualitas nyata (s.d. pertengahan 2026)
   // urutan nomor: 1 kiper, 2 & 4 bek, 7 & 11 gelandang, 9 penyerang
@@ -71,6 +106,22 @@ const League = (() => {
     bvb: { 1: 'A', 2: 'B', 4: 'A', 7: 'B', 11: 'B', 9: 'A' },
     mun: { 1: 'C', 2: 'B', 4: 'B', 7: 'A', 11: 'B', 9: 'B' },
     acm: { 1: 'A', 2: 'B', 4: 'C', 7: 'A', 11: 'A', 9: 'A' },
+    tot: { 1: 'B', 2: 'A', 4: 'A', 7: 'A', 11: 'B', 9: 'B' },
+    nfc: { 1: 'B', 2: 'B', 4: 'B', 7: 'A', 11: 'A', 9: 'B' },
+    avl: { 1: 'S', 2: 'B', 4: 'B', 7: 'B', 11: 'A', 9: 'A' },
+    rom: { 1: 'B', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
+    ata: { 1: 'B', 2: 'B', 4: 'B', 7: 'B', 11: 'A', 9: 'B' },
+    laz: { 1: 'B', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
+    rso: { 1: 'B', 2: 'B', 4: 'C', 7: 'A', 11: 'B', 9: 'A' },
+    ath: { 1: 'A', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'A' },
+    vil: { 1: 'C', 2: 'B', 4: 'B', 7: 'C', 11: 'B', 9: 'B' },
+    ben: { 1: 'B', 2: 'B', 4: 'C', 7: 'B', 11: 'B', 9: 'B' },
+    por: { 1: 'A', 2: 'B', 4: 'C', 7: 'B', 11: 'B', 9: 'B' },
+    scp: { 1: 'B', 2: 'A', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
+    aja: { 1: 'C', 2: 'B', 4: 'B', 7: 'B', 11: 'C', 9: 'C' },
+    psv: { 1: 'C', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
+    com: { 1: 'B', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
+    rbl: { 1: 'C', 2: 'B', 4: 'B', 7: 'B', 11: 'B', 9: 'B' },
   };
   // Ciri khusus: fin = Finisher (Tembak), pas = Pengumpan (Oper), dri = Dribbler (Kontrol), wal = Tembok (Bertahan)
   const TRAIT_DATA = {
@@ -90,36 +141,52 @@ const League = (() => {
     bvb: { 7: ['dri'], 9: ['fin'] },
     mun: { 7: ['pas'], 11: ['dri'] },
     acm: { 11: ['pas'], 9: ['dri'] },
+    tot: { 2: ['wal'], 4: ['dri'], 7: ['dri'], 11: ['dri'] },
+    nfc: { 2: ['wal'], 7: ['pas'] },
+    avl: { 4: ['pas'], 7: ['pas'], 11: ['dri'], 9: ['fin'] },
+    rom: { 2: ['wal'], 11: ['pas'] },
+    ata: { 2: ['wal'], 4: ['dri'], 7: ['pas'], 11: ['dri'] },
+    laz: { 7: ['pas'], 11: ['dri'] },
+    rso: { 7: ['dri'], 11: ['pas'], 9: ['fin'] },
+    ath: { 2: ['wal'], 4: ['pas'], 9: ['dri'] },
+    vil: { 7: ['pas'], 11: ['dri'], 9: ['fin'] },
+    ben: { 4: ['wal'], 11: ['pas'], 9: ['fin'] },
+    por: { 11: ['pas'] },
+    scp: { 2: ['pas'], 4: ['wal'], 11: ['dri'], 9: ['fin'] },
+    aja: {  },
+    psv: { 2: ['dri'], 11: ['pas'] },
+    com: { 2: ['wal'], 7: ['pas'], 9: ['fin'] },
+    rbl: { 4: ['pas'], 9: ['dri'] },
   };
   // Pemain toko (pasar transfer) untuk liga Main Sendiri: [nama, posisi, tier, umur, ciri, potensi]
   // potensi (tersembunyi): '' biasa, 'T' tinggi, 'ST' sangat tinggi. Umur = awal musim 2026/27.
   const SHOP_DATA = [
     // kiper
-    ['Emiliano Martínez', 'GK', 'S', 34, [], ''], ['Ter Stegen', 'GK', 'A', 34, [], ''], ['Ederson', 'GK', 'A', 33, [], ''],
-    ['Diogo Costa', 'GK', 'A', 27, [], ''], ['Unai Simón', 'GK', 'A', 29, [], ''], ['Onana', 'GK', 'B', 30, [], ''],
-    ['Vicario', 'GK', 'B', 30, [], ''], ['Pickford', 'GK', 'B', 32, [], ''], ['Szczęsny', 'GK', 'B', 36, [], ''],
-    ['Mamardashvili', 'GK', 'B', 26, [], ''], ['Verbruggen', 'GK', 'B', 24, [], 'T'], ['Svilar', 'GK', 'B', 27, [], ''],
-    ['Remiro', 'GK', 'B', 31, [], ''], ['Dean Henderson', 'GK', 'B', 29, [], ''], ['Safonov', 'GK', 'B', 27, [], ''],
+    ['Ter Stegen', 'GK', 'A', 34, [], ''], ['Ederson', 'GK', 'A', 33, [], ''], ['Onana', 'GK', 'B', 30, [], ''],
+    ['Pickford', 'GK', 'B', 32, [], ''], ['Szczęsny', 'GK', 'B', 36, [], ''], ['Mamardashvili', 'GK', 'B', 26, [], ''],
+    ['Verbruggen', 'GK', 'B', 24, [], 'T'], ['Dean Henderson', 'GK', 'B', 29, [], ''], ['Safonov', 'GK', 'B', 27, [], ''],
+    ['Bounou', 'GK', 'B', 35, [], ''], ['Matz Sels', 'GK', 'B', 34, [], ''], ['Bułka', 'GK', 'B', 29, [], ''],
     ['Lunin', 'GK', 'C', 27, [], ''], ['Kepa', 'GK', 'C', 32, [], ''], ['Filip Jørgensen', 'GK', 'C', 24, [], ''],
+    ['Ramsdale', 'GK', 'C', 28, [], ''], ['Leno', 'GK', 'C', 34, [], ''], ['Đorđe Petrović', 'GK', 'C', 26, [], ''],
     // bek
     ['Nuno Mendes', 'DF', 'S', 24, ['dri'], ''], ['Rüdiger', 'DF', 'A', 33, ['wal'], ''], ['Militão', 'DF', 'A', 28, [], ''],
     ['Theo Hernández', 'DF', 'A', 29, ['dri'], ''], ['Alphonso Davies', 'DF', 'A', 26, ['dri'], ''], ['Araujo', 'DF', 'A', 27, ['wal'], ''],
     ['Akanji', 'DF', 'A', 31, [], ''], ['Konaté', 'DF', 'A', 27, ['wal'], ''], ['Timber', 'DF', 'A', 25, [], ''],
     ['Pacho', 'DF', 'A', 25, ['wal'], ''], ['Tah', 'DF', 'A', 30, [], ''], ['Hincapié', 'DF', 'A', 24, [], ''],
-    ['Cucurella', 'DF', 'A', 28, [], ''], ['Dumfries', 'DF', 'A', 30, [], ''], ['Van de Ven', 'DF', 'A', 25, [], ''],
-    ['Cristian Romero', 'DF', 'A', 28, ['wal'], ''], ['Guéhi', 'DF', 'A', 26, [], ''], ['Pedro Porro', 'DF', 'A', 27, ['pas'], ''],
-    ['Carvajal', 'DF', 'B', 34, [], ''], ['Balde', 'DF', 'B', 23, [], ''], ['Robertson', 'DF', 'B', 32, ['pas'], ''],
-    ['Lisandro Martínez', 'DF', 'B', 28, [], ''], ['Calafiori', 'DF', 'B', 24, [], ''], ['Pavard', 'DF', 'B', 30, [], ''],
-    ['Gatti', 'DF', 'B', 28, [], ''], ['Rrahmani', 'DF', 'B', 32, [], ''], ['Mazraoui', 'DF', 'B', 29, [], ''],
-    ['Jorrel Hato', 'DF', 'B', 20, [], 'ST'], ['Lewis-Skelly', 'DF', 'B', 19, [], 'T'], ['Udogie', 'DF', 'B', 23, [], ''],
-    ['Aké', 'DF', 'B', 31, [], ''], ['Stones', 'DF', 'B', 32, [], ''], ['Hiroki Ito', 'DF', 'B', 27, [], ''],
-    ['Guerreiro', 'DF', 'B', 32, [], ''], ['Lucas Hernández', 'DF', 'B', 30, [], ''], ['Zabarnyi', 'DF', 'B', 24, [], ''],
-    ['Ferland Mendy', 'DF', 'B', 31, [], ''], ['Álvaro Carreras', 'DF', 'B', 23, [], 'T'], ['Christensen', 'DF', 'B', 30, [], ''],
-    ['Eric García', 'DF', 'B', 25, [], ''], ['Van Hecke', 'DF', 'B', 26, [], ''], ['Stanišić', 'DF', 'B', 26, [], ''],
-    ['Waldemar Anton', 'DF', 'B', 29, [], ''], ['Thiaw', 'DF', 'B', 25, [], ''], ['Kalulu', 'DF', 'B', 26, [], ''],
-    ['Ben White', 'DF', 'B', 29, [], ''], ['Gusto', 'DF', 'B', 23, [], ''], ['Chalobah', 'DF', 'B', 27, [], ''],
-    ['Dorgu', 'DF', 'B', 22, [], 'T'], ['Branthwaite', 'DF', 'B', 24, [], ''], ['Lukeba', 'DF', 'B', 23, [], 'T'],
-    ['Kerkez', 'DF', 'B', 23, [], ''], ['Aït-Nouri', 'DF', 'B', 25, [], ''], ['Leny Yoro', 'DF', 'C', 20, [], 'ST'],
+    ['Cucurella', 'DF', 'A', 28, [], ''], ['Dumfries', 'DF', 'A', 30, [], ''], ['Guéhi', 'DF', 'A', 26, [], ''],
+    ['Pedro Porro', 'DF', 'A', 27, ['pas'], ''], ['Carvajal', 'DF', 'B', 34, [], ''], ['Balde', 'DF', 'B', 23, [], ''],
+    ['Robertson', 'DF', 'B', 32, ['pas'], ''], ['Lisandro Martínez', 'DF', 'B', 28, [], ''], ['Calafiori', 'DF', 'B', 24, [], ''],
+    ['Pavard', 'DF', 'B', 30, [], ''], ['Gatti', 'DF', 'B', 28, [], ''], ['Rrahmani', 'DF', 'B', 32, [], ''],
+    ['Mazraoui', 'DF', 'B', 29, [], ''], ['Jorrel Hato', 'DF', 'B', 20, [], 'ST'], ['Lewis-Skelly', 'DF', 'B', 19, [], 'T'],
+    ['Udogie', 'DF', 'B', 23, [], ''], ['Aké', 'DF', 'B', 31, [], ''], ['Stones', 'DF', 'B', 32, [], ''],
+    ['Hiroki Ito', 'DF', 'B', 27, [], ''], ['Guerreiro', 'DF', 'B', 32, [], ''], ['Lucas Hernández', 'DF', 'B', 30, [], ''],
+    ['Zabarnyi', 'DF', 'B', 24, [], ''], ['Ferland Mendy', 'DF', 'B', 31, [], ''], ['Álvaro Carreras', 'DF', 'B', 23, [], 'T'],
+    ['Christensen', 'DF', 'B', 30, [], ''], ['Eric García', 'DF', 'B', 25, [], ''], ['Van Hecke', 'DF', 'B', 26, [], ''],
+    ['Stanišić', 'DF', 'B', 26, [], ''], ['Waldemar Anton', 'DF', 'B', 29, [], ''], ['Thiaw', 'DF', 'B', 25, [], ''],
+    ['Kalulu', 'DF', 'B', 26, [], ''], ['Ben White', 'DF', 'B', 29, [], ''], ['Gusto', 'DF', 'B', 23, [], ''],
+    ['Chalobah', 'DF', 'B', 27, [], ''], ['Dorgu', 'DF', 'B', 22, [], 'T'], ['Branthwaite', 'DF', 'B', 24, [], ''],
+    ['Kerkez', 'DF', 'B', 23, [], ''], ['Aït-Nouri', 'DF', 'B', 25, [], ''], ['Murillo', 'DF', 'B', 24, [], ''],
+    ['Nathan Collins', 'DF', 'B', 25, [], ''], ['Antonee Robinson', 'DF', 'B', 29, [], ''], ['Leny Yoro', 'DF', 'C', 20, [], 'ST'],
     ['Kyle Walker', 'DF', 'C', 36, [], ''], ['Lucas Beraldo', 'DF', 'C', 22, [], ''], ['Raúl Asencio', 'DF', 'C', 23, [], ''],
     ['Gerard Martín', 'DF', 'C', 24, [], ''], ['Ayden Heaven', 'DF', 'C', 20, [], 'T'],
     // gelandang
@@ -130,11 +197,10 @@ const League = (() => {
     ['Camavinga', 'MF', 'A', 24, [], ''], ['Tchouaméni', 'MF', 'A', 26, [], ''], ['Arda Güler', 'MF', 'A', 21, ['pas'], 'ST'],
     ['Rodrygo', 'MF', 'A', 25, ['dri'], ''], ['Bernardo Silva', 'MF', 'A', 32, ['pas'], ''], ['Foden', 'MF', 'A', 26, [], ''],
     ['Doku', 'MF', 'A', 24, ['dri'], ''], ['Szoboszlai', 'MF', 'A', 26, [], ''], ['Gravenberch', 'MF', 'A', 24, [], ''],
-    ['Désiré Doué', 'MF', 'A', 21, ['dri'], 'ST'], ['Mbeumo', 'MF', 'A', 27, [], ''], ['Xavi Simons', 'MF', 'A', 23, ['dri'], 'T'],
-    ['Bruno Guimarães', 'MF', 'A', 28, ['pas'], ''], ['Tonali', 'MF', 'A', 26, [], ''], ['Zubimendi', 'MF', 'A', 27, ['pas'], ''],
+    ['Désiré Doué', 'MF', 'A', 21, ['dri'], 'ST'], ['Mbeumo', 'MF', 'A', 27, [], ''], ['Zubimendi', 'MF', 'A', 27, ['pas'], ''],
     ['Merino', 'MF', 'A', 30, [], ''], ['Kulusevski', 'MF', 'A', 26, [], ''], ['Barcola', 'MF', 'A', 24, ['dri'], ''],
-    ['Aleksandar Pavlović', 'MF', 'A', 22, ['pas'], 'T'], ['Martinelli', 'MF', 'B', 25, [], ''], ['Trossard', 'MF', 'B', 32, [], ''],
-    ['Gnabry', 'MF', 'B', 31, [], ''], ['Kudus', 'MF', 'B', 26, [], ''], ['Fabián Ruiz', 'MF', 'B', 30, [], ''],
+    ['Aleksandar Pavlović', 'MF', 'A', 22, ['pas'], 'T'], ['Eze', 'MF', 'A', 28, ['dri'], ''], ['Martinelli', 'MF', 'B', 25, [], ''],
+    ['Trossard', 'MF', 'B', 32, [], ''], ['Gnabry', 'MF', 'B', 31, [], ''], ['Fabián Ruiz', 'MF', 'B', 30, [], ''],
     ['Zaïre-Emery', 'MF', 'B', 20, [], 'T'], ['Mount', 'MF', 'B', 27, [], ''], ['Mainoo', 'MF', 'B', 21, [], 'T'],
     ['Frattesi', 'MF', 'B', 27, [], ''], ['Nico Paz', 'MF', 'B', 22, ['pas'], 'ST'], ['Estêvão', 'MF', 'B', 19, ['dri'], 'ST'],
     ['Franco Mastantuono', 'MF', 'B', 19, [], 'ST'], ['Savinho', 'MF', 'B', 22, ['dri'], 'T'], ['Ethan Nwaneri', 'MF', 'B', 19, [], 'T'],
@@ -142,30 +208,31 @@ const League = (() => {
     ['Carlos Baleba', 'MF', 'B', 22, [], 'T'], ['Jamie Gittens', 'MF', 'B', 22, ['dri'], 'T'], ['Ben Seghir', 'MF', 'B', 21, [], ''],
     ['El Khannouss', 'MF', 'B', 22, [], ''], ['Kovačić', 'MF', 'B', 32, [], ''], ['Sané', 'MF', 'B', 30, [], ''],
     ['Coman', 'MF', 'B', 30, [], ''], ['Goretzka', 'MF', 'B', 31, [], ''], ['Koopmeiners', 'MF', 'B', 28, [], ''],
+    ['Gibbs-White', 'MF', 'B', 26, [], ''], ['Elliot Anderson', 'MF', 'B', 24, [], 'T'], ['Bowen', 'MF', 'B', 29, [], ''],
     ['Gündoğan', 'MF', 'C', 36, ['pas'], ''], ['Mkhitaryan', 'MF', 'C', 37, [], ''], ['Casemiro', 'MF', 'C', 34, [], ''],
     ['Claudio Echeverri', 'MF', 'C', 20, [], 'T'], ['Lennart Karl', 'MF', 'C', 18, [], 'ST'], ['Rodrigo Mora', 'MF', 'C', 19, [], 'T'],
     ['Geovany Quenda', 'MF', 'C', 19, [], 'T'], ['Ayyoub Bouaddi', 'MF', 'C', 19, [], 'T'],
     // penyerang
     ['Osimhen', 'FW', 'S', 28, ['fin'], ''], ['Cristiano Ronaldo', 'FW', 'A', 41, ['fin'], ''], ['Lewandowski', 'FW', 'A', 38, ['fin'], ''],
-    ['Ollie Watkins', 'FW', 'A', 31, [], ''], ['Marcus Thuram', 'FW', 'A', 29, [], ''], ['Hugo Ekitiké', 'FW', 'A', 24, [], 'T'],
-    ['Luis Díaz', 'FW', 'A', 29, ['dri'], ''], ['Lookman', 'FW', 'A', 28, [], ''], ['Havertz', 'FW', 'A', 27, [], ''],
-    ['Nico Williams', 'FW', 'A', 24, ['dri'], ''], ['Oyarzabal', 'FW', 'A', 29, ['fin'], ''], ['Griezmann', 'FW', 'A', 35, ['pas'], ''],
+    ['Marcus Thuram', 'FW', 'A', 29, [], ''], ['Hugo Ekitiké', 'FW', 'A', 24, [], 'T'], ['Luis Díaz', 'FW', 'A', 29, ['dri'], ''],
+    ['Havertz', 'FW', 'A', 27, [], ''], ['Griezmann', 'FW', 'A', 35, ['pas'], ''], ['Semenyo', 'FW', 'A', 26, [], ''],
     ['Vlahović', 'FW', 'B', 26, [], ''], ['Sørloth', 'FW', 'B', 31, [], ''], ['Darwin Núñez', 'FW', 'B', 27, [], ''],
     ['Gakpo', 'FW', 'B', 27, [], ''], ['Nicolas Jackson', 'FW', 'B', 25, [], ''], ['Nkunku', 'FW', 'B', 29, [], ''],
     ['Kolo Muani', 'FW', 'B', 28, [], ''], ['Gonçalo Ramos', 'FW', 'B', 25, [], ''], ['Retegui', 'FW', 'B', 27, [], ''],
     ['Lukaku', 'FW', 'B', 33, [], ''], ['Openda', 'FW', 'B', 26, [], ''], ['Mateta', 'FW', 'B', 29, [], ''],
-    ['Solanke', 'FW', 'B', 29, [], ''], ['Dovbyk', 'FW', 'B', 29, [], ''], ['Kean', 'FW', 'B', 26, [], ''],
-    ['Endrick', 'FW', 'B', 20, [], 'ST'], ['Rashford', 'FW', 'B', 29, [], ''], ['Garnacho', 'FW', 'B', 22, ['dri'], ''],
-    ['Delap', 'FW', 'B', 23, [], ''], ['Santiago Giménez', 'FW', 'B', 25, [], ''], ['Mathys Tel', 'FW', 'B', 21, [], 'T'],
-    ['Samu Omorodion', 'FW', 'B', 22, [], 'T'], ['Jhon Durán', 'FW', 'B', 22, [], ''], ['Igor Thiago', 'FW', 'B', 25, [], ''],
-    ['Woltemade', 'FW', 'B', 24, [], ''], ['Burkardt', 'FW', 'B', 26, [], ''], ['Boniface', 'FW', 'B', 25, [], ''],
-    ['Dybala', 'FW', 'B', 32, ['pas'], ''], ['Benzema', 'FW', 'B', 38, ['fin'], ''], ['Gabriel Jesus', 'FW', 'B', 29, [], ''],
-    ['Son Heung-min', 'FW', 'B', 34, [], ''], ['Ferran Torres', 'FW', 'B', 26, [], ''], ['Iñaki Williams', 'FW', 'B', 32, [], ''],
-    ['Morata', 'FW', 'C', 34, [], ''], ['Füllkrug', 'FW', 'C', 33, [], ''], ['Taremi', 'FW', 'C', 34, [], ''],
-    ['Zirkzee', 'FW', 'C', 25, [], ''], ['Joselu', 'FW', 'C', 36, [], ''], ['Evan Ferguson', 'FW', 'C', 21, [], ''],
-    ['Francesco Camarda', 'FW', 'C', 18, [], 'ST'], ['Chido Obi', 'FW', 'C', 19, [], 'T'], ['Marc Guiu', 'FW', 'C', 20, [], ''],
-    ['Calvert-Lewin', 'FW', 'C', 29, [], ''], ['Immobile', 'FW', 'C', 36, [], ''], ['Džeko', 'FW', 'C', 40, [], ''],
-    ['Vitor Roque', 'FW', 'C', 21, [], ''],
+    ['Kean', 'FW', 'B', 26, [], ''], ['Endrick', 'FW', 'B', 20, [], 'ST'], ['Rashford', 'FW', 'B', 29, [], ''],
+    ['Garnacho', 'FW', 'B', 22, ['dri'], ''], ['Delap', 'FW', 'B', 23, [], ''], ['Santiago Giménez', 'FW', 'B', 25, [], ''],
+    ['Mathys Tel', 'FW', 'B', 21, [], 'T'], ['Jhon Durán', 'FW', 'B', 22, [], ''], ['Igor Thiago', 'FW', 'B', 25, [], ''],
+    ['Burkardt', 'FW', 'B', 26, [], ''], ['Boniface', 'FW', 'B', 25, [], ''], ['Benzema', 'FW', 'B', 38, ['fin'], ''],
+    ['Gabriel Jesus', 'FW', 'B', 29, [], ''], ['Son Heung-min', 'FW', 'B', 34, [], ''], ['Ferran Torres', 'FW', 'B', 26, [], ''],
+    ['Iñaki Williams', 'FW', 'B', 32, [], ''], ['Wissa', 'FW', 'B', 29, [], ''], ['Chris Wood', 'FW', 'B', 34, [], ''],
+    ['Tammy Abraham', 'FW', 'B', 28, [], ''], ['Strand Larsen', 'FW', 'B', 26, [], ''], ['Aktürkoğlu', 'FW', 'B', 28, [], ''],
+    ['Amoura', 'FW', 'B', 26, [], ''], ['Morata', 'FW', 'C', 34, [], ''], ['Füllkrug', 'FW', 'C', 33, [], ''],
+    ['Taremi', 'FW', 'C', 34, [], ''], ['Zirkzee', 'FW', 'C', 25, [], ''], ['Joselu', 'FW', 'C', 36, [], ''],
+    ['Evan Ferguson', 'FW', 'C', 21, [], ''], ['Francesco Camarda', 'FW', 'C', 18, [], 'ST'], ['Chido Obi', 'FW', 'C', 19, [], 'T'],
+    ['Marc Guiu', 'FW', 'C', 20, [], ''], ['Calvert-Lewin', 'FW', 'C', 29, [], ''], ['Immobile', 'FW', 'C', 36, [], ''],
+    ['Džeko', 'FW', 'C', 40, [], ''], ['Vitor Roque', 'FW', 'C', 21, [], ''], ['Hwang Hee-chan', 'FW', 'C', 30, [], ''],
+    ['Assane Diao', 'FW', 'C', 21, [], 'T'],
   ];
   // umur pemain inti klub (urutan slot 1, 2, 4, 7, 11, 9)
   const CLUB_AGES = {
@@ -185,16 +252,46 @@ const League = (() => {
     bvb: [29, 28, 26, 24, 21, 30], // Kobel, Ryerson, Schlotterbeck, Adeyemi, J. Bellingham, Guirassy
     mun: [24, 27, 27, 32, 27, 23], // Lammens, Dalot, De Ligt, Bruno F., Cunha, Šeško
     acm: [31, 28, 27, 28, 41, 27], // Maignan, Tomori, Gabbia, Pulisic, Modrić, Leão
+    tot: [30, 28, 25, 23, 26, 29], // Vicario, Cristian Romero, Van de Ven, Xavi Simons, Kudus, Solanke
+    nfc: [34, 26, 23, 28, 26, 24], // Pope, Botman, Livramento, Bruno Guimarães, Tonali, Woltemade
+    avl: [34, 28, 29, 29, 24, 31], // Emiliano Martínez, Konsa, Pau Torres, Tielemans, Morgan Rogers, Ollie Watkins
+    rom: [27, 30, 27, 25, 32, 29], // Svilar, Gianluca Mancini, Ndicka, Manu Koné, Dybala, Dovbyk
+    ata: [26, 27, 26, 25, 28, 27], // Carnesecchi, Isak Hien, Bellanova, De Ketelaere, Lookman, Scamacca
+    laz: [32, 31, 26, 24, 31, 28], // Provedel, Romagnoli, Mario Gila, Rovella, Zaccagni, Castellanos
+    rso: [31, 25, 29, 25, 29, 29], // Remiro, Zubeldia, Aihen Muñoz, Kubo, Brais Méndez, Oyarzabal
+    ath: [29, 27, 32, 26, 31, 24], // Unai Simón, Dani Vivian, Laporte, Sancet, Berenguer, Nico Williams
+    vil: [25, 28, 23, 37, 31, 34], // Luiz Júnior, Foyth, Renato Veiga, Parejo, Pépé, Gerard Moreno
+    ben: [25, 22, 38, 30, 23, 27], // Trubin, António Silva, Otamendi, Aursnes, Sudakov, Pavlidis
+    por: [27, 30, 23, 25, 24, 22], // Diogo Costa, Bednarek, Alberto Costa, Alan Varela, Gabri Veiga, Samu Omorodion
+    scp: [32, 25, 22, 27, 26, 29], // Rui Silva, Gonçalo Inácio, Diomande, Hjulmand, Trincão, Luis Javier Suárez
+    aja: [25, 23, 26, 24, 33, 34], // Jaroš, Youri Baas, Šutalo, Kenneth Taylor, Klaassen, Weghorst
+    psv: [27, 25, 23, 29, 37, 23], // Kovář, Dest, Flamingo, Guus Til, Perišić, Ricardo Pepi
+    com: [31, 31, 21, 23, 26, 27], // Butez, Kempf, Jacobo Ramón, Perrone, Caqueret, Douvikas
+    rbl: [36, 23, 28, 29, 27, 19], // Gulácsi, Lukeba, Raum, Schlager, Baumgartner, Yan Diomande
   };
+  // potensi tersembunyi pemain klub tertentu (sisanya dihitung dari umur)
+  const CLUB_POT = { 'com-4': 'T', 'rbl-9': 'ST', 'scp-4': 'T', 'ben-2': 'T' };
   // Ekonomi (dalam juta). Juara liga + piala 3 musim beruntun ~ 70 jt = 1 pemain S termurah.
   const MARKET = {
     START_MONEY: 10, MIN_SQUAD: 6, MIN_FIRST: 8, MAX_SQUAD: 10, SELL_RATE: 0.4,
     PRICE: { S: 70, A: 18, B: 5, C: 1.5 }, TRAIT_BONUS: 0.1,
     LEAGUE_PRIZE: [12, 9, 7, 6, 5, 4.5, 4, 3.5, 3, 2.7, 2.3, 2, 1.5, 1.3, 1.2, 1],
-    CUP_PRIZE: { 'Babak 16 Besar': 0.5, 'Perempat Final': 1, 'Semifinal': 2, 'Final': 3, 'Juara': 5 },
+    CUP_PRIZE: { 'Babak 32 Besar': 0.3, 'Babak 16 Besar': 0.5, 'Perempat Final': 1, 'Semifinal': 2, 'Final': 3, 'Juara': 5 },
+    CH_PRIZE: [3, 2.6, 2.3, 2, 1.8, 1.6, 1.4, 1.2, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.3], // Championship
+    PROMO_BONUS: 3,
+    UCL_PRIZE: { 'Fase Grup': 1, 'Perempat Final': 2, 'Semifinal': 3, 'Final': 4, 'Juara': 6 },
     WIN: 0.2, DRAW: 0.08, HOME: 0.1,
   };
   const CUP_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
+  // Main Sendiri: 2 divisi + Piala 32 tim + UCL (16 tim Premiere)
+  const CUP_ROUNDS2 = ['Babak 32 Besar', 'Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
+  const UCL_ROUNDS = ['Perempat Final', 'Semifinal', 'Final'];
+  const DIV_NAME = { 1: 'Premiere', 2: 'Championship' };
+  const GROUP_NAME = ['A', 'B', 'C', 'D'];
+  const PROMO = 3;                        // 3 tim naik & 3 tim turun
+  const CUP_AFTER2 = [3, 8, 14, 20, 26];  // babak piala setelah pekan ke-n
+  const UCL_GROUP_AFTER = [5, 11, 17];    // matchday grup UCL
+  const UCL_KO_AFTER = [22, 25, 29];      // perempat final, semifinal, final UCL
   // tingkat kesulitan komputer lawan
   const LEVELS = [
     ['easy', 'Easy', 'Komputer sering salah langkah & jarang bertahan rapat'],
@@ -218,6 +315,12 @@ const League = (() => {
   const seasonName = y => `${y}/${y + 1}`;
   const club = id => save.clubs.find(c => c.id === id);
   const isCpu = () => save.mode === 'cpu';
+  const isDiv = () => !!(save && save.divMode);
+  const cupRounds = () => (isDiv() ? CUP_ROUNDS2 : CUP_ROUNDS);
+  const isKO = ev => ev.type === 'cup' || (ev.type === 'ucl' && !!ev.ko);
+  // divisi klub pada musim berjalan (daftar dibekukan saat musim dibuat)
+  const divOf = cid => (isDiv() && save.divs[2].includes(cid) ? 2 : 1);
+  const inPremiere = cid => !isDiv() || save.divs[1].includes(cid);
   const isMe = id => !!save.user && id === save.user;
   const ROLE_OF = { 1: 'GK', 2: 'DF', 4: 'DF', 7: 'MF', 11: 'MF', 9: 'FW' };
   const NUMS = [1, 2, 4, 7, 11, 9];
@@ -305,10 +408,10 @@ const League = (() => {
     save.market = true;
     save.players = {};
     for (const c of save.clubs) {
-      c.roster = []; c.lineup = {}; c.money = MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0 };
+      c.roster = []; c.lineup = {}; c.money = MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
       for (const n of NUMS) {
         const id = c.id + '-' + n;
-        save.players[id] = makePlayer(id, SQUADS[c.id][n], ROLE_OF[n], TIERS[c.id][n], CLUB_AGES[c.id][NUMS.indexOf(n)], (TRAIT_DATA[c.id] || {})[n] || [], '', c.id);
+        save.players[id] = makePlayer(id, SQUADS[c.id][n], ROLE_OF[n], TIERS[c.id][n], CLUB_AGES[c.id][NUMS.indexOf(n)], (TRAIT_DATA[c.id] || {})[n] || [], CLUB_POT[id] || '', c.id);
         c.roster.push(id); c.lineup[n] = id;
       }
       syncClub(c);
@@ -385,11 +488,29 @@ const League = (() => {
     if (cid === save.user) save.ledger.unshift({ season: seasonName(save.year), label, amount: Math.round(amount * 100) / 100 });
     if (save.ledger.length > 60) save.ledger.length = 60;
   }
+  // Minat pemain bergabung: tergantung tier pemain & status klub
+  // status 0 = Championship, 1 = Premiere tanpa trofi (2 musim terakhir), 2 = Premiere dengan trofi
+  const WILL = { S: [0.05, 0.35, 0.9], A: [0.2, 0.85, 1], B: [0.75, 1, 1], C: [0.95, 1, 1] };
+  function clubStatus(cid) {
+    if (!isDiv()) return 2;
+    if (club(cid).div === 2) return 0;
+    return save.history.slice(-2).some(x => x.league === cid || x.cup === cid || x.ucl === cid) ? 2 : 1;
+  }
+  const willChance = (c, p) => WILL[p.tier][clubStatus(c.id)];
+  const willLabel = v => (v >= 0.85 ? ['🟢', 'Tinggi'] : v >= 0.5 ? ['🟡', 'Sedang'] : v >= 0.2 ? ['🟠', 'Rendah'] : ['🔴', 'Sangat rendah']);
+  // pemain yang sudah menolak klub ini baru bisa didekati lagi musim depan
+  const refusedBy = (c, pid) => !!(save.refused && (save.refused[pid] || []).includes(c.id));
   // pemain yang baru dijual klub ini di jendela yang sama tidak bisa dibeli kembali (mencegah rugi)
   const soldByMe = (c, pid) => !!(save.soldBy && save.soldBy[pid] === c.id);
   function buy(c, pid) {
     const p = P(pid);
-    if (!save.window || !p || p.club || soldByMe(c, pid) || c.roster.length >= MARKET.MAX_SQUAD || c.money + 1e-9 < price(p)) return false;
+    if (!save.window || !p || p.club || soldByMe(c, pid) || refusedBy(c, pid) || c.roster.length >= MARKET.MAX_SQUAD || c.money + 1e-9 < price(p)) return false;
+    if (Math.random() >= willChance(c, p)) {
+      save.refused = save.refused || {};
+      (save.refused[pid] = save.refused[pid] || []).push(c.id);
+      if (c.id === save.user || TV[p.tier] >= TV.A) save.news.unshift(`${p.name} (${p.tier}) menolak bergabung dengan ${club(c.id).name}`);
+      return 'refused';
+    }
     c.money = r2(c.money - price(p)); p.club = c.id; c.roster.push(pid);
     addLedger(c.id, `Beli ${p.name}`, -price(p));
     save.news.unshift(`${club(c.id).name} membeli ${p.name} (${p.tier}) seharga ${fmtM(price(p))}`);
@@ -420,6 +541,16 @@ const League = (() => {
     const cheapest = () => Math.min(...freeAgents().map(price), 99);
     const reserve = extra => Math.max(0, minSquad() - (c.roster.length + extra)) * cheapest();
     const pickTop = (opts, k) => { const top = opts.filter(p => TV[p.tier] === TV[opts[0].tier]); return top[Math.floor(Math.random() * Math.min(k, top.length))]; };
+    // coba beli; bila pemain menolak, coba kandidat lain
+    const tryBuy = (opts, k) => {
+      opts = opts.filter(p => !refusedBy(c, p.id));
+      for (let i = 0; i < 4 && opts.length; i++) {
+        const p = pickTop(opts, k);
+        if (buy(c, p.id) === true) return true;
+        opts = opts.filter(x => x !== p);
+      }
+      return false;
+    };
     const benchOf = () => c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P);
     // 1) upgrade pemain inti (posisi terlemah dulu)
     if (Math.random() < AI_T.UPGRADE) {
@@ -434,8 +565,7 @@ const League = (() => {
           }
           const opts = freeAgents().filter(p => p.role === ROLE_OF[n] && TV[p.tier] > t && price(p) <= c.money - reserve(1))
             .sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
-          if (!opts.length) continue;
-          buy(c, pickTop(opts, 3).id);
+          if (!tryBuy(opts, 3)) continue;
           autoLineup(c);
           done = true;
           break;
@@ -456,15 +586,14 @@ const League = (() => {
       const budget = c.money * AI_T.DEPTH_SPEND;
       for (const role of need) {
         const opts = freeAgents().filter(p => p.role === role && price(p) <= budget).sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
-        if (opts.length) { buy(c, pickTop(opts, 4).id); break; }
+        if (opts.length && tryBuy(opts, 4)) break;
       }
     }
     // 4) penuhi skuad minimal
     let guard = 0;
     while (c.roster.length < minSquad() && guard++ < 10) {
       const opts = freeAgents().filter(p => price(p) <= c.money - reserve(1)).sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
-      if (!opts.length) break;
-      buy(c, pickTop(opts, 4).id);
+      if (!tryBuy(opts, 4)) break;
     }
     autoLineup(c);
   }
@@ -499,7 +628,7 @@ const League = (() => {
     if (save && save.market) {
       const ages = {};
       SHOP_DATA.forEach(d => { ages[d[0]] = d[3]; });
-      for (const c of CLUBS) NUMS.forEach((n, i) => { ages[SQUADS[c.id][n]] = CLUB_AGES[c.id][i]; });
+      for (const c of [...CLUBS, ...CLUBS2]) NUMS.forEach((n, i) => { ages[SQUADS[c.id][n]] = CLUB_AGES[c.id][i]; });
       for (const p of Object.values(save.players)) if (p.age == null) {
         p.age = ages[p.name] || 27; p.ovr = OVR_BASE[p.tier] || 60; p.pot = initPotential(p.ovr, p.age, '');
       }
@@ -528,6 +657,7 @@ const League = (() => {
   }
 
   function newSeason(year) {
+    if (isDiv()) { newSeasonDiv(year); return; }
     const ids = shuffle(save.clubs.map(c => c.id));
     const rounds = roundRobin(ids);
     const events = [];
@@ -540,6 +670,33 @@ const League = (() => {
     const draw = shuffle(save.clubs.map(c => c.id));
     events.find(e => e.type === 'cup' && e.round === 0).matches =
       Array.from({ length: 8 }, (_, i) => ({ h: draw[2 * i], a: draw[2 * i + 1] }));
+    save.year = year;
+    save.events = events;
+    save.next = 0;
+  }
+
+  // Premiere & Championship (30 pekan bersamaan), Piala 32 tim (5 babak), UCL: 4 grup x 4 tim + gugur
+  function newSeasonDiv(year) {
+    const d1 = save.clubs.filter(c => c.div === 1).map(c => c.id), d2 = save.clubs.filter(c => c.div === 2).map(c => c.id);
+    save.divs = { 1: d1, 2: d2 };
+    const r1 = roundRobin(shuffle(d1.slice())), r2 = roundRobin(shuffle(d2.slice()));
+    const pot = shuffle(d1.slice());
+    save.groups = [0, 1, 2, 3].map(g => pot.slice(g * 4, g * 4 + 4));
+    const gRounds = save.groups.map(g => roundRobin(g).slice(0, 3)); // 1 leg
+    const events = [];
+    r1.forEach((pairs, i) => {
+      const md = i + 1;
+      events.push({ type: 'league', md, matches: [...pairs.map(([hh, a]) => ({ h: hh, a, d: 1 })), ...r2[i].map(([hh, a]) => ({ h: hh, a, d: 2 }))] });
+      const c = CUP_AFTER2.indexOf(md);
+      if (c >= 0) events.push({ type: 'cup', round: c, matches: [] });
+      const g = UCL_GROUP_AFTER.indexOf(md);
+      if (g >= 0) events.push({ type: 'ucl', gmd: g + 1, matches: gRounds.flatMap((gr, gi) => gr[g].map(([hh, a]) => ({ h: hh, a, g: gi }))) });
+      const k = UCL_KO_AFTER.indexOf(md);
+      if (k >= 0) events.push({ type: 'ucl', ko: true, round: k, matches: [] });
+    });
+    const draw = shuffle(save.clubs.map(c => c.id));
+    events.find(e => e.type === 'cup' && e.round === 0).matches =
+      Array.from({ length: draw.length / 2 }, (_, i) => ({ h: draw[2 * i], a: draw[2 * i + 1] }));
     save.year = year;
     save.events = events;
     save.next = 0;
@@ -576,20 +733,22 @@ const League = (() => {
 
   function pickTeam() {
     const st = c => 80 + 3 * NUMS.reduce((a, n) => a + TV[TIERS[c.id][n]], 0) / NUMS.length;
-    const list = CLUBS.slice().sort((a, b) => st(b) - st(a));
+    const sorted = list => list.slice().sort((a, b) => st(b) - st(a));
+    const grid = list => `<div class="club-grid">
+        ${sorted(list).map(c => `<button class="club-btn" data-club="${c.id}">
+          <span class="club-dot" style="background:${c.color}"></span>
+          <b>${h(c.name)}</b><small>${stars(st(c))}</small></button>`).join('')}
+      </div>`;
     showModal(`
       <h2>Pilih Tim</h2>
-      <p>Musim ${seasonName(START_YEAR)} · 16 tim · liga kandang-tandang + piala</p>
+      <p>Musim ${seasonName(START_YEAR)} · 32 tim · Premiere & Championship + Piala + UCL</p>
       <div class="lvl-pick">
         <span>Tingkat kesulitan:</span>
         <div class="seg">${LEVELS.map(([k, n]) => `<button type="button" data-lvl="${k}" class="${k === 'medium' ? 'on' : ''}">${n}</button>`).join('')}</div>
         <small id="lvlDesc">${LEVELS[1][2]}</small>
       </div>
-      <div class="club-grid">
-        ${list.map(c => `<button class="club-btn" data-club="${c.id}">
-          <span class="club-dot" style="background:${c.color}"></span>
-          <b>${h(c.name)}</b><small>${stars(st(c))}</small></button>`).join('')}
-      </div>
+      <h4 class="aw-h">🏆 Premiere</h4>${grid(CLUBS)}
+      <h4 class="aw-h">🥈 Championship <small class="muted">· 3 teratas naik ke Premiere</small></h4>${grid(CLUBS2)}
       <div class="btns"><button class="btn ghost" id="btnPickBack">← Kembali</button></div>`);
     let lvl = 'medium';
     document.querySelectorAll('[data-lvl]').forEach(b => {
@@ -601,7 +760,8 @@ const League = (() => {
     });
     document.querySelectorAll('[data-club]').forEach(b => {
       b.onclick = () => {
-        save = { v: 1, mode: 'solo', user: b.dataset.club, difficulty: lvl, clubs: CLUBS.map(c => ({ ...c, squad: { ...SQUADS[c.id] }, tiers: { ...TIERS[c.id] }, traits: JSON.parse(JSON.stringify(TRAIT_DATA[c.id] || {})), form: 0 })), history: [] };
+        const mk = (c, div) => ({ ...c, div, squad: { ...SQUADS[c.id] }, tiers: { ...TIERS[c.id] }, traits: JSON.parse(JSON.stringify(TRAIT_DATA[c.id] || {})), form: 0 });
+        save = { v: 1, mode: 'solo', divMode: true, user: b.dataset.club, difficulty: lvl, clubs: [...CLUBS.map(c => mk(c, 1)), ...CLUBS2.map(c => mk(c, 2))], history: [] };
         initMarket();
         newSeason(START_YEAR);
         persist();
@@ -791,7 +951,7 @@ const League = (() => {
       m.ratings = ratings ? { h: ratings.home, a: ratings.away } : genRatings(m);
       if (ratings && ratings.byPid && isMarket()) m.pr = { h: ratings.byPid.home, a: ratings.byPid.away };
     }
-    if (ev.type === 'cup') {
+    if (isKO(ev)) {
       if (hs === as) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
       m.winner = hs > as || (hs === as && m.ph > m.pa) ? m.h : m.a;
     }
@@ -801,19 +961,26 @@ const League = (() => {
   /* ---------- alur event ---------- */
   function currentEvent() {
     const ev = save.events[save.next];
-    if (ev && ev.type === 'cup' && !ev.matches.length) {
-      // pasangan babak berikutnya: pemenang pertandingan berurutan di bagan
-      const prev = save.events.find(e => e.type === 'cup' && e.round === ev.round - 1);
-      const w = prev.matches.map(m => m.winner);
-      ev.matches = Array.from({ length: w.length / 2 }, (_, i) => {
-        const pair = Math.random() < 0.5 ? [w[2 * i], w[2 * i + 1]] : [w[2 * i + 1], w[2 * i]];
-        return { h: pair[0], a: pair[1] };
-      });
+    if (ev && isKO(ev) && !ev.matches.length) {
+      let pairs;
+      if (ev.type === 'ucl' && ev.round === 0) {
+        // perempat final UCL: juara grup vs runner-up grup pasangannya
+        const t = save.groups.map((g, gi) => groupTable(gi));
+        pairs = [[t[0][0], t[1][1]], [t[1][0], t[0][1]], [t[2][0], t[3][1]], [t[3][0], t[2][1]]].map(([a, b]) => [a.id, b.id]);
+      } else {
+        // pasangan babak berikutnya: pemenang pertandingan berurutan di bagan
+        const prev = save.events.find(e => e.type === ev.type && isKO(e) && e.round === ev.round - 1);
+        const w = prev.matches.map(m => m.winner);
+        pairs = Array.from({ length: w.length / 2 }, (_, i) => [w[2 * i], w[2 * i + 1]]);
+      }
+      ev.matches = pairs.map(p => (Math.random() < 0.5 ? { h: p[0], a: p[1] } : { h: p[1], a: p[0] }));
       persist();
     }
     return ev;
   }
-  const eventTitle = ev => ev.type === 'league' ? `Liga · Pekan ${ev.md}/30` : `Piala · ${CUP_ROUNDS[ev.round]}`;
+  const eventTitle = (ev, m) => ev.type === 'league' ? `${isDiv() ? (m && m.d ? DIV_NAME[m.d] : 'Liga') : 'Liga'} · Pekan ${ev.md}/30`
+    : ev.type === 'cup' ? `Piala · ${cupRounds()[ev.round]}`
+    : ev.ko ? `UCL · ${UCL_ROUNDS[ev.round]}` : `UCL · Fase Grup ${ev.gmd}/3${m && m.g != null ? ` (Grup ${GROUP_NAME[m.g]})` : ''}`;
   const userMatch = ev => ev && save.user && ev.matches.find(m => m.h === save.user || m.a === save.user);
 
   // Warna kostum: tim tamu memakai warna kedua jika terlalu mirip dengan tim tuan rumah
@@ -839,7 +1006,7 @@ const League = (() => {
   async function playUserMatch(how) {
     const ev = currentEvent(), m = userMatch(ev);
     if (!m || m.played) return;
-    const ko = ev.type === 'cup';
+    const ko = isKO(ev);
     if (how === 'instant') {
       const [hs, as] = simScore(m.h, m.a);
       const so = ko && hs === as ? shootout() : null;
@@ -857,14 +1024,14 @@ const League = (() => {
       knockout: ko,
       level: save.difficulty,
       subs: isMarket(),
-      label: eventTitle(ev),
+      label: eventTitle(ev, m),
       onEnd: (hs, as, events, ratings) => recordEngineResult(ev, m, hs, as, events, ratings, finishEvent),
     });
   }
 
   // Hasil dari mesin game (main sendiri / ditonton): gol, assist & rating sungguhan
   async function recordEngineResult(ev, m, hs, as, events, ratings, done) {
-    const so = ev.type === 'cup' && hs === as ? shootout() : null;
+    const so = isKO(ev) && hs === as ? shootout() : null;
     if (so) await showShootout(m, hs, as, so);
     // gol dari mesin game: home/away -> klub; gol bunuh diri tanpa pencetak
     const goals = (events || []).filter(e => e.type === 'goal')
@@ -881,7 +1048,7 @@ const League = (() => {
     startMatch({
       ...kits(m),
       bots: ['home', 'away'],
-      knockout: ev.type === 'cup',
+      knockout: isKO(ev),
       level: 'hard',
       speed: 1,
       label: eventTitle(ev),
@@ -899,7 +1066,7 @@ const League = (() => {
     viewEvent = save.next;
     save.next++;
     persist();
-    tab = ev.type === 'cup' ? 'cup' : 'fixtures';
+    tab = ev.type === 'cup' ? 'cup' : ev.type === 'ucl' ? 'ucl' : 'fixtures';
     showHub();
     if (save.next >= save.events.length) endSeason();
   }
@@ -920,40 +1087,58 @@ const League = (() => {
   }
 
   function endSeason() {
-    const table = standings();
-    const final = save.events.find(e => e.type === 'cup' && e.round === 3).matches[0];
-    let userPos = null, userCup = null;
+    const D = isDiv(), rounds = cupRounds();
+    const table = standings(1), table2 = D ? standings(2) : null;
+    const final = save.events.find(e => e.type === 'cup' && e.round === rounds.length - 1).matches[0];
+    const uclFinal = D ? save.events.find(e => e.type === 'ucl' && e.ko && e.round === UCL_ROUNDS.length - 1).matches[0] : null;
+    const inM = (e, cid) => e.matches.some(m => m.h === cid || m.a === cid);
+    const reachCup = cid => {
+      let r = rounds[0];
+      for (const e of save.events) if (e.type === 'cup' && inM(e, cid)) r = rounds[e.round];
+      return final.winner === cid ? 'Juara' : r;
+    };
+    const reachUcl = cid => {
+      if (!D || !save.divs[1].includes(cid)) return null;
+      let r = 'Fase Grup';
+      for (const e of save.events) if (e.type === 'ucl' && e.ko && inM(e, cid)) r = UCL_ROUNDS[e.round];
+      return uclFinal.winner === cid ? 'Juara' : r;
+    };
+    let userPos = null, userCup = null, userDiv = null, userUcl = null;
     if (save.user) {
-      userPos = table.findIndex(r => r.id === save.user) + 1;
-      userCup = 'Babak 16 Besar';
-      for (const e of save.events) if (e.type === 'cup' && e.matches.some(m => m.h === save.user || m.a === save.user)) userCup = CUP_ROUNDS[e.round];
-      if (final.winner === save.user) userCup = 'Juara';
+      userDiv = divOf(save.user);
+      userPos = (userDiv === 2 ? table2 : table).findIndex(r => r.id === save.user) + 1;
+      userCup = reachCup(save.user);
+      userUcl = reachUcl(save.user);
     }
-    const st = playerStats();
+    const st = playerStats(awardComp(), inPremiere);
     const ts = st.goals[0], ta = st.assists[0];
-    const pots = playerOfSeason(table, final.winner);
+    const pots = playerOfSeason(table, final.winner, uclFinal && uclFinal.winner);
     const entry = { season: seasonName(save.year), league: table[0].id, cup: final.winner, userPos, userCup,
       topScorer: ts ? { c: ts.cid, name: ts.name, n: ts.n } : null,
       topAssist: ta ? { c: ta.cid, name: ta.name, n: ta.n } : null,
       pots, dream: dreamTeam() };
+    if (D) Object.assign(entry, { ch: table2[0].id, ucl: uclFinal.winner, userDiv, userUcl,
+      promo: { up: table2.slice(0, PROMO).map(r => r.id), down: table.slice(-PROMO).map(r => r.id) } });
     const firstTime = !save.history.some(x => x.season === entry.season);
     if (firstTime) save.history.push(entry);
     // hadiah uang (sekali per musim)
     let prize = null;
     if (isMarket() && firstTime) {
-      table.forEach((r, i) => {
-        const c = club(r.id), v = MARKET.LEAGUE_PRIZE[i];
-        c.money = r2(c.money + v); c.income.league = r2(c.income.league + v); addLedger(r.id, `Hadiah liga (peringkat ${i + 1})`, v);
-      });
-      for (const c of save.clubs) {
-        let reach = 'Babak 16 Besar';
-        for (const e of save.events) if (e.type === 'cup' && e.matches.some(m => m.h === c.id || m.a === c.id)) reach = CUP_ROUNDS[e.round];
-        if (final.winner === c.id) reach = 'Juara';
-        const v = MARKET.CUP_PRIZE[reach];
-        c.money = r2(c.money + v); c.income.cup = r2(c.income.cup + v); addLedger(c.id, `Hadiah piala (${reach})`, v);
+      const pay = (cid, key, v, label) => { const c = club(cid); c.money = r2(c.money + v); c.income[key] = r2((c.income[key] || 0) + v); addLedger(cid, label, v); };
+      table.forEach((r, i) => pay(r.id, 'league', MARKET.LEAGUE_PRIZE[i], `Hadiah ${D ? 'Premiere' : 'liga'} (peringkat ${i + 1})`));
+      if (D) {
+        table2.forEach((r, i) => pay(r.id, 'league', MARKET.CH_PRIZE[i], `Hadiah Championship (peringkat ${i + 1})`));
+        for (const cid of save.divs[1]) { const r = reachUcl(cid); pay(cid, 'ucl', MARKET.UCL_PRIZE[r], `Hadiah UCL (${r})`); }
+        for (const cid of entry.promo.up) pay(cid, 'promo', MARKET.PROMO_BONUS, 'Bonus promosi ke Premiere');
       }
-      const me = club(save.user);
-      prize = { ...me.income, total: me.income.league + me.income.cup + me.income.match, money: me.money };
+      for (const c of save.clubs) { const r = reachCup(c.id); pay(c.id, 'cup', MARKET.CUP_PRIZE[r], `Hadiah piala (${r})`); }
+      // promosi & degradasi (berlaku musim depan)
+      if (D) {
+        for (const cid of entry.promo.down) club(cid).div = 2;
+        for (const cid of entry.promo.up) club(cid).div = 1;
+      }
+      const me = club(save.user), inc = me.income;
+      prize = { ...inc, total: inc.league + inc.cup + inc.match + (inc.ucl || 0) + (inc.promo || 0), money: me.money };
       entry.prize = prize;
       // simpan statistik pemain musim ini (dilihat saat jendela transfer berikutnya)
       save.lastStats = { season: seasonName(save.year), stats: clubPlayerStats(save.user) };
@@ -961,20 +1146,29 @@ const League = (() => {
       entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
     }
     persist();
-    const L = club(entry.league), C = club(entry.cup);
+    // tampilan ulang (setelah dimuat lagi): pakai catatan yang tersimpan
+    const E = firstTime ? entry : save.history.find(x => x.season === entry.season) || entry;
+    if (!firstTime) prize = E.prize || null;
+    const L = club(E.league), C = club(E.cup);
+    const champ = (icon, label, cid) => `<div class="champ-row"><span>${icon} ${label}</span><b style="color:${club(cid).color}">${h(club(cid).name)}</b></div>`;
+    const names = ids => ids.map(id => `<b class="${isMe(id) ? 'me' : ''}">${h(club(id).name)}</b>`).join(', ');
     showModal(`
-      <h2>Musim ${entry.season} Selesai</h2>
-      <div class="champ-row"><span>🏆 Juara Liga</span><b style="color:${L.color}">${h(L.name)}</b></div>
-      <div class="champ-row"><span>🥇 Juara Piala</span><b style="color:${C.color}">${h(C.name)}</b></div>
-      ${entry.topScorer ? `<div class="champ-row"><span>👟 Top Skor</span><b>${h(entry.topScorer.name)} <small>(${h(club(entry.topScorer.c).name)}) · ${entry.topScorer.n} gol</small></b></div>` : ''}
-      ${entry.topAssist ? `<div class="champ-row"><span>🎯 Top Assist</span><b>${h(entry.topAssist.name)} <small>(${h(club(entry.topAssist.c).name)}) · ${entry.topAssist.n} assist</small></b></div>` : ''}
-      ${pots ? potsCard(pots) : ''}
-      ${entry.dev ? devCard(entry.dev) : ''}
+      <h2>Musim ${E.season} Selesai</h2>
+      ${champ('🏆', D ? 'Juara Premiere' : 'Juara Liga', E.league)}
+      ${D ? champ('🥈', 'Juara Championship', E.ch) : ''}
+      ${champ('🥇', 'Juara Piala', E.cup)}
+      ${D ? champ('⭐', 'Juara UCL', E.ucl) : ''}
+      ${E.promo ? `<div class="promo-box"><div>⬆️ Naik ke Premiere: ${names(E.promo.up)}</div><div>⬇️ Turun ke Championship: ${names(E.promo.down)}</div></div>` : ''}
+      ${E.topScorer ? `<div class="champ-row"><span>👟 Top Skor</span><b>${h(E.topScorer.name)} <small>(${h(club(E.topScorer.c).name)}) · ${E.topScorer.n} gol</small></b></div>` : ''}
+      ${E.topAssist ? `<div class="champ-row"><span>🎯 Top Assist</span><b>${h(E.topAssist.name)} <small>(${h(club(E.topAssist.c).name)}) · ${E.topAssist.n} assist</small></b></div>` : ''}
+      ${D ? '<p class="muted aw-note">Penghargaan dari semua kompetisi (liga, piala, UCL), khusus pemain klub Premiere.</p>' : ''}
+      ${E.pots ? potsCard(E.pots) : ''}
+      ${E.dev ? devCard(E.dev) : ''}
       <h4 class="aw-h">⭐ Dream Team Musim Ini</h4>
-      ${dreamPitch(entry.dream)}
-      ${save.user ? `<p>${h(club(save.user).name)}: peringkat <b>${userPos}</b> di liga, piala: <b>${userCup}</b>.</p>` : ''}
+      ${dreamPitch(E.dream)}
+      ${save.user ? `<p>${h(club(save.user).name)}: peringkat <b>${E.userPos}</b> di ${D ? DIV_NAME[E.userDiv] : 'liga'}, piala: <b>${E.userCup}</b>${E.userUcl ? `, UCL: <b>${E.userUcl}</b>` : ''}.</p>` : ''}
       ${prize ? `<div class="fin-box"><b>💰 Pendapatan musim ini: +${fmtM(prize.total)}</b>
-        <small>Hadiah liga +${fmtM(prize.league)} · Hadiah piala +${fmtM(prize.cup)} · Bonus laga +${fmtM(prize.match)}</small>
+        <small>Hadiah liga +${fmtM(prize.league)} · Hadiah piala +${fmtM(prize.cup)}${prize.ucl ? ` · Hadiah UCL +${fmtM(prize.ucl)}` : ''}${prize.promo ? ` · Bonus promosi +${fmtM(prize.promo)}` : ''} · Bonus laga +${fmtM(prize.match)}</small>
         <small>Uang klub sekarang: <b>${fmtM(prize.money)}</b></small></div>` : ''}
       <div class="btns"><button class="btn primary" id="btnNextSeason">Mulai Musim ${seasonName(save.year + 1)}</button></div>`);
     el('btnNextSeason').onclick = () => {
@@ -985,7 +1179,8 @@ const League = (() => {
         save.window = true; // jendela transfer pra-musim
         save.news = [];
         save.soldBy = {};
-        for (const c of save.clubs) c.income = { league: 0, cup: 0, match: 0 };
+        save.refused = {}; // pemain yang menolak bisa didekati lagi
+        for (const c of save.clubs) c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
       }
       persist();
       hideModal();
@@ -1014,8 +1209,12 @@ const League = (() => {
     : `${h(gname(g, 's', m))}${g.a ? ` <small>(assist ${h(gname(g, 'a', m))})</small>` : ''}`) + (g.min ? ` <small>${g.min}'</small>` : '');
   const subLine = x => `🔁 ${x.min}' ${h(P(x.out).name)} → <b>${h(P(x.in).name)}</b>`;
 
-  // Statistik pemain sepanjang musim (liga): penampilan, rata-rata rating, gol, assist, clean sheet
-  function seasonPlayers() {
+  // filter kompetisi: league (mode lama), p = Premiere, c = Championship, cup, ucl, all
+  const compFilter = comp => (ev, m) => comp === 'all' || (comp === 'league' ? ev.type === 'league'
+    : comp === 'p' ? ev.type === 'league' && m.d === 1 : comp === 'c' ? ev.type === 'league' && m.d === 2 : ev.type === comp);
+  // Statistik pemain sepanjang musim: penampilan, rata-rata rating, gol, assist, clean sheet
+  function seasonPlayers(comp = 'league') {
+    const inc = compFilter(comp);
     const map = new Map();
     let cur = null; // laga yang sedang dihitung
     const get = (cid, num, direct) => {
@@ -1025,9 +1224,8 @@ const League = (() => {
       return map.get(k);
     };
     for (const ev of save.events) {
-      if (ev.type !== 'league') continue;
       for (const m of ev.matches) {
-        if (!m.played) continue;
+        if (!m.played || !inc(ev, m)) continue;
         cur = m;
         if (!m.ratings) m.ratings = genRatings(m); // data lama tanpa rating
         for (const [side, cid, conc] of [['h', m.h, m.as], ['a', m.a, m.hs]]) {
@@ -1061,23 +1259,25 @@ const League = (() => {
   }
 
   // Dream Team: rata-rata rating tertinggi per posisi (1 kiper, 2 bek, 2 gelandang, 1 penyerang)
+  // mode 2 divisi: dihitung dari semua kompetisi, hanya pemain klub Premiere
+  const awardComp = () => (isDiv() ? 'all' : 'league');
   function dreamTeam() {
-    const ps = seasonPlayers().filter(p => p.apps >= 10);
+    const ps = seasonPlayers(awardComp()).filter(p => p.apps >= 10 && inPremiere(p.cid));
     const best = (role, n) => ps.filter(p => p.role === role).sort((a, b) => b.avg - a.avg || b.g + b.a - (a.g + a.a)).slice(0, n);
     return [...best('GK', 1), ...best('DF', 2), ...best('MF', 2), ...best('FW', 1)]
       .map(p => ({ c: p.cid, num: p.num, role: p.role, name: p.name, avg: Math.round(p.avg * 100) / 100 }));
   }
 
   // Pemain Terbaik Musim: skor gabungan rating, gol, assist, clean sheet & prestasi tim
-  const POTS = { RATING: 10, GOAL: 2, ASSIST: 1.5, CS: 0.8, LEAGUE: 12, CUP: 6, TOP4: 3 };
-  function playerOfSeason(table, cupWinner) {
+  const POTS = { RATING: 10, GOAL: 2, ASSIST: 1.5, CS: 0.8, LEAGUE: 12, CUP: 6, UCL: 10, TOP4: 3 };
+  function playerOfSeason(table, cupWinner, uclWinner) {
     const champ = table[0].id, top4 = table.slice(0, 4).map(r => r.id);
-    const list = seasonPlayers().filter(p => p.apps >= 10).map(p => {
-      const lg = p.cid === champ, cup = p.cid === cupWinner, t4 = !lg && top4.includes(p.cid);
+    const list = seasonPlayers(awardComp()).filter(p => p.apps >= 10 && inPremiere(p.cid)).map(p => {
+      const lg = p.cid === champ, cup = p.cid === cupWinner, ucl = !!uclWinner && p.cid === uclWinner, t4 = !lg && top4.includes(p.cid);
       const score = p.avg * POTS.RATING + p.g * POTS.GOAL + p.a * POTS.ASSIST + p.cs * POTS.CS
-        + (lg ? POTS.LEAGUE : 0) + (cup ? POTS.CUP : 0) + (t4 ? POTS.TOP4 : 0);
+        + (lg ? POTS.LEAGUE : 0) + (cup ? POTS.CUP : 0) + (ucl ? POTS.UCL : 0) + (t4 ? POTS.TOP4 : 0);
       return { c: p.cid, num: p.num, role: p.role, name: p.name, avg: Math.round(p.avg * 100) / 100,
-        g: p.g, a: p.a, cs: p.cs, league: lg, cup, top4: t4, score: Math.round(score * 10) / 10 };
+        g: p.g, a: p.a, cs: p.cs, league: lg, cup, ucl, top4: t4, score: Math.round(score * 10) / 10 };
     }).sort((a, b) => b.score - a.score);
     return list[0] || null;
   }
@@ -1088,7 +1288,7 @@ const League = (() => {
       <div class="pots-s">
         <span>Rating <b>${p.avg.toFixed(2)}</b></span><span>Gol <b>${p.g}</b></span><span>Assist <b>${p.a}</b></span>
         <span>G/A <b>${p.g + p.a}</b></span>${p.role === 'GK' || p.role === 'DF' ? `<span>Clean sheet <b>${p.cs}</b></span>` : ''}
-        ${p.league ? '<span>🏆 Juara Liga</span>' : ''}${p.cup ? '<span>🥇 Juara Piala</span>' : ''}${p.top4 ? '<span>4 Besar</span>' : ''}
+        ${p.league ? '<span>🏆 Juara Liga</span>' : ''}${p.cup ? '<span>🥇 Juara Piala</span>' : ''}${p.ucl ? '<span>⭐ Juara UCL</span>' : ''}${p.top4 ? '<span>4 Besar</span>' : ''}
         <span>Skor <b>${p.score}</b></span>
       </div>
     </div>`;
@@ -1106,7 +1306,7 @@ const League = (() => {
     const H = club(m.h), A = club(m.a);
     const side = c => (m.goals || []).filter(g => g.c === c).map(g => `<div>⚽ ${goalLine(g, m)}</div>`).join('') || '<div class="muted">-</div>';
     showModal(`
-      <h2>${eventTitle(ev)}</h2>
+      <h2>${eventTitle(ev, m)}</h2>
       <div class="final">${m.hs} : ${m.as}</div>
       <p><b style="color:${H.color}">${h(H.name)}</b> vs <b style="color:${A.color}">${h(A.name)}</b>${m.ph != null ? ` · pen ${m.ph}-${m.pa}` : ''}</p>
       <div class="scorers"><div>${side(m.h)}</div><div>${side(m.a)}</div></div>
@@ -1134,8 +1334,9 @@ const League = (() => {
     return ratingTable({ home: list(m.h, 'h'), away: list(m.a, 'a') }, club(m.h), club(m.a), all[0] && all[0].id);
   }
 
-  // top skor & assist liga musim ini
-  function playerStats() {
+  // top skor & assist per kompetisi; elig = klub yang boleh masuk daftar
+  function playerStats(comp = 'league', elig = () => true) {
+    const inc = compFilter(comp);
     const goals = new Map(), assists = new Map();
     const add = (map, cid, num, m, direct) => {
       const pid = direct || pidAt(m, cid, num);
@@ -1144,9 +1345,8 @@ const League = (() => {
       e.n++; map.set(k, e);
     };
     for (const ev of save.events) {
-      if (ev.type !== 'league') continue;
       for (const m of ev.matches) for (const g of m.goals || []) {
-        if (g.og || g.s == null) continue;
+        if (!m.played || !inc(ev, m) || !elig(g.c) || g.og || g.s == null) continue;
         add(goals, g.c, g.s, m, g.sp);
         if (g.a != null) add(assists, g.c, g.a, m, g.ap);
       }
@@ -1184,12 +1384,11 @@ const League = (() => {
   }
 
   /* ---------- klasemen ---------- */
-  function standings() {
-    const rows = new Map(save.clubs.map(c => [c.id, { id: c.id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
+  function tableOf(ids, inc) {
+    const rows = new Map(ids.map(id => [id, { id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0, form: [] }]));
     for (const ev of save.events) {
-      if (ev.type !== 'league') continue;
       for (const m of ev.matches) {
-        if (!m.played) continue;
+        if (!m.played || !inc(ev, m)) continue;
         const H = rows.get(m.h), A = rows.get(m.a);
         H.p++; A.p++; H.gf += m.hs; H.ga += m.as; A.gf += m.as; A.ga += m.hs;
         if (m.hs > m.as) { H.w++; A.l++; H.pts += 3; H.form.push('M'); A.form.push('K'); }
@@ -1200,6 +1399,11 @@ const League = (() => {
     return [...rows.values()].sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf
       || club(a.id).name.localeCompare(club(b.id).name));
   }
+  function standings(div = 1) {
+    if (!isDiv()) return tableOf(save.clubs.map(c => c.id), ev => ev.type === 'league');
+    return tableOf(save.divs[div], (ev, m) => ev.type === 'league' && m.d === div);
+  }
+  const groupTable = gi => tableOf(save.groups[gi], (ev, m) => ev.type === 'ucl' && !ev.ko && m.g === gi);
 
   /* ---------- tampilan hub ---------- */
   function hideHub() {
@@ -1222,7 +1426,7 @@ const League = (() => {
       <header class="hub-head">
         <div class="hub-title">
           ${me ? `<span class="club-dot big" style="background:${me.color}"></span>` : '<span class="hub-ic">🤖</span>'}
-          <div><h1>${me ? h(me.name) : 'Liga Komputer'}</h1><small>Liga Mini Eropa · Musim ${seasonName(save.year)}${me ? '' : ' · semua laga Hard vs Hard'}</small></div>
+          <div><h1>${me ? h(me.name) : 'Liga Komputer'}</h1><small>${isDiv() && me ? DIV_NAME[me.div] : 'Liga Mini Eropa'} · Musim ${seasonName(save.year)}${me ? '' : ' · semua laga Hard vs Hard'}</small></div>
           ${me && isMarket() ? `<div class="money">💰 ${fmtM(me.money)}</div>` : ''}
         </div>
         <div class="hub-actions">
@@ -1234,7 +1438,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : isMarket() && save.window ? windowCard() : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ['history', 'Juara & Penghargaan']]
+        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan']]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -1248,7 +1452,14 @@ const League = (() => {
     hub.querySelectorAll('[data-buy]').forEach(b => { b.onclick = async () => {
       const c = club(save.user), p = P(b.dataset.buy);
       if (!(await confirmTrade('buy', c, p))) return;
-      if (buy(c, p.id)) { persist(); showHub(); }
+      const r = buy(c, p.id);
+      if (r === 'refused') {
+        persist();
+        showModal(`<h2>❌ Tawaran Ditolak</h2><p><b>${h(p.name)}</b> (${p.tier}) tidak mau bergabung dengan ${h(c.name)} musim ini.</p>
+          <p class="muted">${club(c.id).div === 2 ? 'Pemain bagus enggan bermain di Championship.' : 'Pemain bintang lebih tertarik ke klub yang baru meraih trofi.'} Kamu bisa mencoba lagi musim depan.</p>
+          <div class="btns"><button class="btn primary" id="btnRefOk">OK</button></div>`);
+        el('btnRefOk').onclick = () => { hideModal(); showHub(); };
+      } else if (r) { persist(); showHub(); }
     }; });
     hub.querySelectorAll('[data-sell]').forEach(b => { b.onclick = async () => {
       const c = club(save.user), p = P(b.dataset.sell);
@@ -1258,6 +1469,8 @@ const League = (() => {
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
+    hub.querySelectorAll('[data-vdiv]').forEach(b => { b.onclick = () => { divView = +b.dataset.vdiv; showHub(); }; });
+    hub.querySelectorAll('[data-scomp]').forEach(b => { b.onclick = () => { statComp = b.dataset.scomp; showHub(); }; });
     if (el('btnAutoLineup')) el('btnAutoLineup').onclick = () => { autoLineup(club(save.user)); persist(); showHub(); };
     if (el('btnCloseWindow')) el('btnCloseWindow').onclick = () => closeWindow();
     const sim = el('btnSimEvent');
@@ -1289,6 +1502,9 @@ const League = (() => {
   const AGE_FILTER = { all: () => true, u21: a => a <= 21, mid: a => a >= 22 && a <= 29, old: a => a >= 30 };
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
   let shopRole = 'all', shopTier = 'all', shopAge = 'all';
+  let divView = null, statComp = null; // tampilan divisi (klasemen/skuad) & kompetisi (statistik)
+  const curDivView = () => divView || (save.user ? divOf(save.user) : 1);
+  const divSeg = () => `<div class="seg div-seg">${[1, 2].map(d => `<button type="button" data-vdiv="${d}" class="${curDivView() === d ? 'on' : ''}">${DIV_NAME[d]}</button>`).join('')}</div>`;
 
   // jendela konfirmasi beli / jual pemain
   function confirmTrade(kind, c, p) {
@@ -1303,6 +1519,7 @@ const League = (() => {
         <tr><td class="l">Uang sekarang</td><td>${fmtM(c.money)}</td></tr>
         <tr><td class="l">Uang setelahnya</td><td><b>${fmtM(after)}</b></td></tr>
         <tr><td class="l">Skuad setelahnya</td><td>${c.roster.length + (kind === 'buy' ? 1 : -1)}/${MARKET.MAX_SQUAD}</td></tr>
+        ${kind === 'buy' && isDiv() ? `<tr><td class="l">Minat bergabung</td><td>${willLabel(willChance(c, p)).join(' ')}</td></tr>` : ''}
       </tbody></table>
       ${kind === 'sell' ? '<p class="muted">Pemain yang dijual kembali ke toko dengan harga penuh dan bisa dibeli klub lain.</p>' : ''}
       <div class="btns"><button class="btn ghost" id="btnTradeNo">Batal</button>
@@ -1379,6 +1596,7 @@ const League = (() => {
     const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age))
       .sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
     const why = p => !save.window ? 'Jendela transfer tutup' : soldByMe(c, p.id) ? 'Baru kamu jual (tidak bisa dibeli lagi di jendela ini)'
+      : refusedBy(c, p.id) ? 'Menolak klubmu (coba lagi musim depan)'
       : c.roster.length >= MARKET.MAX_SQUAD ? 'Skuad penuh (10)' : c.money + 1e-9 < price(p) ? 'Uang tidak cukup' : '';
     const filt = (key, cur, items) => `<div class="seg">${items.map(([v, n]) => `<button type="button" data-${key}="${v}" class="${cur === v ? 'on' : ''}">${n}</button>`).join('')}</div>`;
     return `<div class="shop-head">
@@ -1387,20 +1605,20 @@ const League = (() => {
         ${filt('ftier', shopTier, [['all', 'Semua tier'], ['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C']])}
         ${filt('fage', shopAge, [['all', 'Semua umur'], ['u21', '≤21'], ['mid', '22–29'], ['old', '30+']])}
       </div>
-      <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th><th></th></tr></thead><tbody>
+      <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th>${isDiv() ? '<th title="Minat bergabung dengan klubmu">Minat</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
-        <td><b>${fmtM(price(p))}</b></td>
+        <td><b>${fmtM(price(p))}</b></td>${isDiv() ? `<td title="${willLabel(willChance(c, p))[1]}">${willLabel(willChance(c, p))[0]}</td>` : ''}
         <td>${why(p) ? `<small class="muted">${why(p)}</small>` : `<button class="btn sm primary" data-buy="${p.id}">Beli</button>`}</td></tr>`).join('')}
       </tbody></table></div>
-      <p class="muted sq-note">${list.length} pemain tersedia. Harga dipengaruhi tier, ciri, umur & bakat (pemain muda berbakat lebih mahal). Harga jual kembali ke toko hanya ${MARKET.SELL_RATE * 100}% dari harga toko.</p>
+      <p class="muted sq-note">${list.length} pemain tersedia. Harga dipengaruhi tier, ciri, umur & bakat (pemain muda berbakat lebih mahal). Harga jual kembali ke toko hanya ${MARKET.SELL_RATE * 100}% dari harga toko.${isDiv() ? ` Minat (🟢 tinggi · 🟡 sedang · 🟠 rendah · 🔴 sangat rendah): pemain bagus enggan ke Championship, pemain S lebih memilih klub Premiere yang meraih trofi dalam 2 musim terakhir. Pemain yang menolak bisa dicoba lagi musim depan.` : ''}</p>
       ${save.news.length ? `<h4 class="aw-h">Berita Transfer</h4><div class="news">${save.news.slice(0, 40).map(n => `<div>📰 ${h(n)}</div>`).join('')}</div>` : ''}`;
   }
 
   function nextCard(ev, um) {
     if (!ev) return `<div class="nc-title">Musim selesai</div>
       <button class="btn primary" id="btnSeasonEnd" onclick="League.endSeason()">Lihat ringkasan musim</button>`;
-    const title = `<div class="nc-title">${eventTitle(ev)}</div>`;
-    if (!um) return `${title}<p class="nc-sub">${h(club(save.user).name)} tidak bermain di babak ini${ev.type === 'cup' ? ' (sudah tersingkir)' : ''}.</p>
+    const title = `<div class="nc-title">${eventTitle(ev, um)}</div>`;
+    if (!um) return `${title}<p class="nc-sub">${h(club(save.user).name)} tidak bermain di babak ini${ev.type === 'ucl' && !inPremiere(save.user) ? ' (UCL khusus tim Premiere)' : isKO(ev) ? ' (sudah tersingkir)' : ''}.</p>
       <div class="nc-actions"><button class="btn primary" id="btnSimEvent">⏭ Simulasikan</button></div>`;
     const H = club(um.h), A = club(um.a);
     return `${title}
@@ -1409,7 +1627,7 @@ const League = (() => {
         <div class="nc-vs">VS</div>
         <div class="nc-team">${badge(um.a)}<b class="${um.a === save.user ? 'me' : ''}">${h(A.name)}</b><small>Tandang</small></div>
       </div>
-      ${ev.type === 'cup' ? '<p class="nc-sub">Sistem gugur 1 leg. Imbang = adu penalti.</p>' : ''}
+      ${isKO(ev) ? '<p class="nc-sub">Sistem gugur 1 leg. Imbang = adu penalti.</p>' : ev.type === 'ucl' ? '<p class="nc-sub">Fase grup 1 leg: juara & runner-up grup lolos ke perempat final.</p>' : ''}
       <div class="nc-actions">
         <button class="btn primary" data-play="play">▶ Main</button>
         <button class="btn ghost" data-play="instant">⚡ Hasil Instan</button>
@@ -1436,11 +1654,14 @@ const League = (() => {
     if ((tab === 'my' || tab === 'shop') && !isMarket()) tab = 'table';
     if (tab === 'my') return myTab();
     if (tab === 'shop') return shopTab();
+    if ((tab === 'ucl') && !isDiv()) tab = 'table';
     if (tab === 'table') {
-      const rows = standings();
-      return `<div class="tbl-wrap"><table class="tbl">
+      const dv = isDiv() ? curDivView() : 1;
+      const rows = standings(dv);
+      const zone = i => !isDiv() ? '' : dv === 1 && i >= rows.length - PROMO ? ' z-down' : dv === 2 && i < PROMO ? ' z-up' : '';
+      return `${isDiv() ? `${divSeg()}<p class="muted sq-note">${dv === 1 ? `Semua tim Premiere ikut UCL. ${PROMO} tim terbawah turun ke Championship.` : `${PROMO} tim teratas naik ke Premiere.`}</p>` : ''}<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>#</th><th class="l">Tim</th><th>Main</th><th>M</th><th>S</th><th>K</th><th>GM</th><th>GK</th><th>SG</th><th>Poin</th><th class="form-h">5 Terakhir</th></tr></thead>
-        <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i === 0 ? ' top' : ''}">
+        <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i === 0 ? ' top' : ''}${zone(i)}">
           <td>${i + 1}</td><td class="l">${nameCell(r.id)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
           <td>${r.gf}</td><td>${r.ga}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>
           <td class="form">${r.form.slice(-5).map(f => `<i class="f${f}">${f}</i>`).join('')}</td></tr>`).join('')}</tbody>
@@ -1449,14 +1670,22 @@ const League = (() => {
     if (tab === 'fixtures') {
       if (viewEvent == null) viewEvent = Math.min(save.next, save.events.length - 1);
       const ev = save.events[viewEvent];
-      const list = ev.matches.length ? ev.matches.map(m => `
+      const fxRow = m => `
         <div class="fx ${isMe(m.h) || isMe(m.a) ? 'me-row' : ''}">
           <span class="fx-h">${h(club(m.h).name)} ${badge(m.h)}</span>
           <span class="fx-s">${m.played ? `${m.hs} - ${m.as}` : 'vs'}</span>
           <span class="fx-a">${badge(m.a)} ${h(club(m.a).name)}</span>
           ${m.ph != null ? `<small class="fx-p">pen ${m.ph}-${m.pa}</small>` : ''}
           ${m.goals && m.goals.length ? `<small class="fx-g"><span>${m.goals.filter(g => g.c === m.h).map(g => goalLine(g, m)).join(', ')}</span><span>${m.goals.filter(g => g.c === m.a).map(g => goalLine(g, m)).join(', ')}</span></small>` : ''}
-        </div>`).join('') : '<p class="muted">Pasangan ditentukan setelah babak sebelumnya selesai.</p>';
+        </div>`;
+      const sec = (title, ms) => `<h4 class="aw-h fx-sec">${title}</h4>${ms.map(fxRow).join('')}`;
+      let list;
+      if (!ev.matches.length) list = '<p class="muted">Pasangan ditentukan setelah babak sebelumnya selesai.</p>';
+      else if (isDiv() && ev.type === 'league') {
+        const mine = divOf(save.user), order = mine === 2 ? [2, 1] : [1, 2];
+        list = order.map(d => sec(DIV_NAME[d], ev.matches.filter(m => m.d === d))).join('');
+      } else if (ev.type === 'ucl' && !ev.ko) list = GROUP_NAME.map((g, gi) => sec(`Grup ${g}`, ev.matches.filter(m => m.g === gi))).join('');
+      else list = ev.matches.map(fxRow).join('');
       return `<div class="ev-nav">
           <button class="btn" id="evPrev" ${viewEvent === 0 ? 'disabled' : ''}>←</button>
           <b>${eventTitle(ev)}</b>
@@ -1464,19 +1693,24 @@ const League = (() => {
         </div>${list}`;
     }
     if (tab === 'stats') {
-      const st = playerStats();
+      const COMPS = [['p', 'Premiere'], ['c', 'Championship'], ['cup', 'Piala'], ['ucl', 'UCL']];
+      const comp = isDiv() ? (statComp || (divOf(save.user) === 2 ? 'c' : 'p')) : 'league';
+      const cname = isDiv() ? COMPS.find(x => x[0] === comp)[1] : 'Liga';
+      const st = playerStats(comp);
       const list = (rows, unit) => rows.length ? `<table class="tbl"><tbody>${rows.map((r, i) => `<tr class="${isMe(r.cid) ? 'me-row' : ''}">
           <td>${i + 1}</td><td class="l"><b>${h(r.name)}</b></td><td class="l">${nameCell(r.cid)}</td><td><b>${r.n}</b> ${unit}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted">Belum ada data.</p>';
-      // rating rata-rata (minimal tampil di separuh laga yang sudah dimainkan)
-      const played = Math.max(...standings().map(r => r.p), 0);
-      const rated = seasonPlayers().filter(p => p.apps >= Math.max(1, Math.ceil(played / 2))).sort((a, b) => b.avg - a.avg).slice(0, 10);
+      // rating rata-rata (minimal tampil di separuh laga terbanyak pada kompetisi ini)
+      const sp = seasonPlayers(comp);
+      const played = Math.max(0, ...sp.map(p => p.apps));
+      const rated = sp.filter(p => p.apps >= Math.max(1, Math.ceil(played / 2))).sort((a, b) => b.avg - a.avg).slice(0, 10);
       const rtList = rated.length ? `<table class="tbl"><tbody>${rated.map((p, i) => `<tr class="${isMe(p.cid) ? 'me-row' : ''}">
           <td>${i + 1}</td><td class="l"><b>${h(p.name)}</b> <small class="muted">${ROLE_ID[p.role]}</small></td><td class="l">${nameCell(p.cid)}</td>
           <td><span class="rt ${ratingCls(p.avg)}">${p.avg.toFixed(2)}</span></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Belum ada data.</p>';
-      return `<div class="stats-grid">
-        <div><h4>👟 Top Skor Liga</h4>${list(st.goals, 'gol')}</div>
-        <div><h4>🎯 Top Assist Liga</h4>${list(st.assists, 'assist')}</div>
+      return `${isDiv() ? `<div class="seg div-seg">${COMPS.map(([k, n]) => `<button type="button" data-scomp="${k}" class="${comp === k ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}
+        <div class="stats-grid">
+        <div><h4>👟 Top Skor ${cname}</h4>${list(st.goals, 'gol')}</div>
+        <div><h4>🎯 Top Assist ${cname}</h4>${list(st.assists, 'assist')}</div>
         <div><h4>⭐ Rating Rata-rata Tertinggi</h4>${rtList}</div>
       </div>`;
     }
@@ -1484,8 +1718,8 @@ const League = (() => {
       // tier, ciri & atribut setiap pemain; tim diurutkan dari yang terkuat
       const grade = v => v >= 4 ? 'S+' : v >= 3 ? 'S' : v >= 2 ? 'A' : v >= 1 ? 'B' : v >= 0 ? 'C' : 'D';
       const cell = (v, key) => `<td><span class="ag g${grade(v).replace('+', 'p')}" title="${key}">${grade(v)}</span></td>`;
-      const clubs = save.clubs.slice().sort((a, b) => lineupStrength(b.id) - lineupStrength(a.id));
-      return `<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
+      const clubs = save.clubs.filter(c => !isDiv() || c.div === curDivView()).sort((a, b) => lineupStrength(b.id) - lineupStrength(a.id));
+      return `${isDiv() ? divSeg() : ''}<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
         <div class="sq-grid">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
           <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small title="Dari tier 6 pemain inti">${stars(lineupStrength(c.id))}</small></div>
           <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th>${isMarket() ? '<th>Umur</th>' : ''}<th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
@@ -1498,32 +1732,49 @@ const League = (() => {
           </tbody></table></div>`).join('')}</div>`;
     }
     if (tab === 'cup') {
-      const cols = CUP_ROUNDS.map((name, r) => {
-        const ev = save.events.find(e => e.type === 'cup' && e.round === r);
-        const ms = ev.matches.length ? ev.matches : Array.from({ length: 8 >> r }, () => null);
-        return `<div class="br-col"><h4>${name}</h4><div class="br-list">${ms.map(m => m ? `
-          <div class="br-m">
-            <div class="${m.winner === m.h ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.h)}<em>${m.played ? m.hs : ''}</em></div>
-            <div class="${m.winner === m.a ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.a)}<em>${m.played ? m.as : ''}</em></div>
-            ${m.ph != null ? `<small>pen ${m.ph}-${m.pa}</small>` : ''}
-          </div>` : '<div class="br-m empty"><div>?</div><div>?</div></div>').join('')}</div></div>`;
-      }).join('');
-      return `<div class="bracket">${cols}</div>`;
+      return bracket('cup', cupRounds(), isDiv() ? 16 : 8);
+    }
+    if (tab === 'ucl') {
+      const groups = save.groups.map((g, gi) => { const rows = groupTable(gi);
+        return `<div class="grp"><h4>Grup ${GROUP_NAME[gi]}</h4><table class="tbl"><thead><tr><th>#</th><th class="l">Tim</th><th>Main</th><th>SG</th><th>Poin</th></tr></thead>
+          <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i < 2 ? ' z-up' : ''}"><td>${i + 1}</td><td class="l">${nameCell(r.id)}</td><td>${r.p}</td>
+          <td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table></div>`; }).join('');
+      return `<p class="muted sq-note">16 tim Premiere · fase grup 1 leg, juara & runner-up grup lolos ke perempat final (sistem gugur 1 leg).</p>
+        <div class="grp-grid">${groups}</div><h4 class="aw-h">Fase Gugur</h4>${bracket('ucl', UCL_ROUNDS, 4)}`;
     }
     // riwayat juara
+    return historyTab();
+  }
+  // bagan sistem gugur (piala / UCL)
+  function bracket(type, names, first) {
+    const cols = names.map((name, r) => {
+      const ev = save.events.find(e => e.type === type && isKO(e) && e.round === r);
+      const ms = ev.matches.length ? ev.matches : Array.from({ length: first >> r }, () => null);
+      return `<div class="br-col"><h4>${name}</h4><div class="br-list">${ms.map(m => m ? `
+        <div class="br-m">
+          <div class="${m.winner === m.h ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.h)}<em>${m.played ? m.hs : ''}</em></div>
+          <div class="${m.winner === m.a ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.a)}<em>${m.played ? m.as : ''}</em></div>
+          ${m.ph != null ? `<small>pen ${m.ph}-${m.pa}</small>` : ''}
+        </div>` : '<div class="br-m empty"><div>?</div><div>?</div></div>').join('')}</div></div>`;
+    }).join('');
+    return `<div class="bracket">${cols}</div>`;
+  }
+  function historyTab() {
     if (!save.history.length) return '<p class="muted">Belum ada musim yang selesai. Juara liga & piala, Pemain Terbaik, dan Dream Team tiap musim akan tercatat di sini.</p>';
     const me = save.user ? club(save.user) : null;
+    const D = isDiv();
     const table = `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th class="l">Musim</th><th class="l">🏆 Juara Liga</th><th class="l">🥇 Juara Piala</th><th class="l">🏅 Pemain Terbaik</th><th class="l">👟 Top Skor</th><th class="l">🎯 Top Assist</th>${me ? `<th>Posisi ${h(me.name)}</th><th class="l">Piala</th>` : ''}</tr></thead>
+      <thead><tr><th class="l">Musim</th><th class="l">🏆 ${D ? 'Premiere' : 'Juara Liga'}</th>${D ? '<th class="l">🥈 Championship</th>' : ''}<th class="l">🥇 Juara Piala</th>${D ? '<th class="l">⭐ UCL</th>' : ''}<th class="l">🏅 Pemain Terbaik</th><th class="l">👟 Top Skor</th><th class="l">🎯 Top Assist</th>${me ? `<th>Posisi ${h(me.name)}</th><th class="l">Piala</th>` : ''}</tr></thead>
       <tbody>${save.history.slice().reverse().map(x => `<tr>
-        <td class="l">${x.season}</td><td class="l">${nameCell(x.league)}</td><td class="l">${nameCell(x.cup)}</td>
+        <td class="l">${x.season}</td><td class="l">${nameCell(x.league)}</td>${D ? `<td class="l">${x.ch ? nameCell(x.ch) : '-'}</td>` : ''}<td class="l">${nameCell(x.cup)}</td>${D ? `<td class="l">${x.ucl ? nameCell(x.ucl) : '-'}</td>` : ''}
         <td class="l">${x.pots ? `${h(x.pots.name)} <small class="muted">(${h(club(x.pots.c).name)})</small>` : '-'}</td>
         <td class="l">${x.topScorer ? `${h(x.topScorer.name)} (${x.topScorer.n})` : '-'}</td>
         <td class="l">${x.topAssist ? `${h(x.topAssist.name)} (${x.topAssist.n})` : '-'}</td>
-        ${me ? `<td>${x.userPos ?? '-'}</td><td class="l">${x.userCup ?? '-'}</td>` : ''}</tr>`).join('')}</tbody>
+        ${me ? `<td>${x.userPos ?? '-'}${x.userDiv ? ` <small class="muted">${DIV_NAME[x.userDiv]}</small>` : ''}</td><td class="l">${x.userCup ?? '-'}${x.userUcl ? ` <small class="muted">· UCL ${x.userUcl}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
     </table></div>`;
     const awards = save.history.slice().reverse().filter(x => x.pots || x.dream).map(x => `
       <div class="aw-season"><h4 class="aw-h">Musim ${x.season}</h4>
+        ${x.promo ? `<div class="promo-box"><div>⬆️ Naik: ${x.promo.up.map(id => h(club(id).name)).join(', ')}</div><div>⬇️ Turun: ${x.promo.down.map(id => h(club(id).name)).join(', ')}</div></div>` : ''}
         ${x.pots ? potsCard(x.pots) : ''}
         ${x.dream ? `<div class="aw-sub">⭐ Dream Team</div>${dreamPitch(x.dream)}` : ''}
       </div>`).join('');
