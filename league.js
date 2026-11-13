@@ -1151,7 +1151,17 @@ const League = (() => {
       for (const c of save.clubs) Object.assign(all, clubPlayerStats(c.id));
       save.lastStatsAll = { season: seasonName(save.year), stats: all };
       // umur bertambah & atribut berkembang/menurun
+      const before = {};
+      for (const p of Object.values(save.players)) before[p.id] = { t: p.tier, o: p.ovr, a: p.age, c: p.club };
       entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
+      // riwayat per pemain tiap musim (ringkas agar hemat localStorage)
+      for (const p of Object.values(save.players)) {
+        const b = before[p.id], x = all[p.id];
+        const e = { s: entry.season, a: b.a, c: b.c, t: b.t, n: p.tier, d: Math.sign(p.ovr - b.o) };
+        if (p.age === AGE.RESET && b.a >= AGE.MAX - 1) e.rb = 1;
+        if (x && x.apps) Object.assign(e, { m: x.apps, g: x.g, as: x.a, r: Math.round(x.avg * 100) / 100 });
+        (p.hist = p.hist || []).push(e);
+      }
     }
     persist();
     // tampilan ulang (setelah dimuat lagi): pakai catatan yang tersimpan
@@ -1545,6 +1555,12 @@ const League = (() => {
       ${car.length ? `<table class="tbl car-tbl"><tbody>${car.map(st => `<tr><td class="l">${badge(st.c)} ${h(club(st.c).name)}</td><td>${stintText(st)}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted">Belum ada riwayat klub.</p>'}
       ${x && x.apps ? `<h4 class="aw-h">Musim ini</h4><p>Main <b>${x.apps}</b> · Gol <b>${x.g}</b> · Assist <b>${x.a}</b> · Rating <b>${x.avg.toFixed(2)}</b></p>` : ''}
+      <h4 class="aw-h">📈 Perkembangan per Musim</h4>
+      ${(p.hist || []).length ? `<div class="tbl-wrap"><table class="tbl car-tbl"><thead><tr><th class="l">Musim</th><th class="l">Klub</th><th>Umur</th><th>Tier</th><th>Tren</th><th>Main</th><th>Gol</th><th>Ast</th><th>Rating</th></tr></thead><tbody>
+        ${p.hist.slice().reverse().map(e => `<tr><td class="l">${e.s}</td><td class="l">${e.c ? `${badge(e.c)} ${h(club(e.c).name)}` : '<span class="muted">Toko</span>'}</td><td>${e.a}</td>
+          <td>${tierBadge(e.t)}${e.n !== e.t ? ` → ${tierBadge(e.n)}` : ''}</td><td>${e.rb ? '🔄 17 th' : e.d > 0 ? '📈 naik' : e.d < 0 ? '📉 turun' : '➖ tetap'}</td>
+          <td>${e.m || 0}</td><td>${e.g || 0}</td><td>${e.as || 0}</td><td>${e.r ? `<span class="rt ${ratingCls(e.r)}">${e.r.toFixed(2)}</span>` : '-'}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">Belum ada musim yang selesai sejak fitur ini aktif.</p>'}
       <div class="btns"><button class="btn primary" id="btnPOk">Tutup</button></div>`);
     el('btnPOk').onclick = () => hideModal();
   }
