@@ -758,3 +758,6 @@ aside { display: grid; gap: 16px; }
 .promo-box .me { color: var(--accent, #facc15); }
 .aw-note { font-size: 12px; margin: 4px 0; }
 .modal .club-grid + .aw-h { margin-top: 14px; }
+
+.shop-search { flex: 1 1 180px; min-width: 160px; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 13px; }
+.shop-search:focus { outline: 2px solid #facc15; outline-offset: 0; }

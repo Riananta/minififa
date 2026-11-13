@@ -84,7 +84,7 @@ const League = (() => {
     scp: { 1: 'Rui Silva', 2: 'Gonçalo Inácio', 4: 'Diomande', 7: 'Hjulmand', 11: 'Trincão', 9: 'Luis Javier Suárez' },
     aja: { 1: 'Jaroš', 2: 'Youri Baas', 4: 'Šutalo', 7: 'Kenneth Taylor', 11: 'Klaassen', 9: 'Weghorst' },
     psv: { 1: 'Kovář', 2: 'Dest', 4: 'Flamingo', 7: 'Guus Til', 11: 'Perišić', 9: 'Ricardo Pepi' },
-    com: { 1: 'Butez', 2: 'Kempf', 4: 'Jacobo Ramón', 7: 'Perrone', 11: 'Caqueret', 9: 'Douvikas' },
+    com: { 1: 'Butez', 2: 'Kempf', 4: 'Jacobo Ramón', 7: 'Perrone', 11: 'Nico Paz', 9: 'Douvikas' },
     rbl: { 1: 'Gulácsi', 2: 'Lukeba', 4: 'Raum', 7: 'Schlager', 11: 'Baumgartner', 9: 'Yan Diomande' },
   };
   // Tier pemain (S/A/B/C) relatif terhadap sesama 96 pemain ini, sesuai kualitas nyata (s.d. pertengahan 2026)
@@ -155,7 +155,7 @@ const League = (() => {
     scp: { 2: ['pas'], 4: ['wal'], 11: ['dri'], 9: ['fin'] },
     aja: {  },
     psv: { 2: ['dri'], 11: ['pas'] },
-    com: { 2: ['wal'], 7: ['pas'], 9: ['fin'] },
+    com: { 2: ['wal'], 7: ['pas'], 11: ['pas'], 9: ['fin'] },
     rbl: { 4: ['pas'], 9: ['dri'] },
   };
   // Pemain toko (pasar transfer) untuk liga Main Sendiri: [nama, posisi, tier, umur, ciri, potensi]
@@ -202,7 +202,7 @@ const League = (() => {
     ['Aleksandar Pavlović', 'MF', 'A', 22, ['pas'], 'T'], ['Eze', 'MF', 'A', 28, ['dri'], ''], ['Martinelli', 'MF', 'B', 25, [], ''],
     ['Trossard', 'MF', 'B', 32, [], ''], ['Gnabry', 'MF', 'B', 31, [], ''], ['Fabián Ruiz', 'MF', 'B', 30, [], ''],
     ['Zaïre-Emery', 'MF', 'B', 20, [], 'T'], ['Mount', 'MF', 'B', 27, [], ''], ['Mainoo', 'MF', 'B', 21, [], 'T'],
-    ['Frattesi', 'MF', 'B', 27, [], ''], ['Nico Paz', 'MF', 'B', 22, ['pas'], 'ST'], ['Estêvão', 'MF', 'B', 19, ['dri'], 'ST'],
+    ['Frattesi', 'MF', 'B', 27, [], ''], ['Caqueret', 'MF', 'B', 26, [], ''], ['Estêvão', 'MF', 'B', 19, ['dri'], 'ST'],
     ['Franco Mastantuono', 'MF', 'B', 19, [], 'ST'], ['Savinho', 'MF', 'B', 22, ['dri'], 'T'], ['Ethan Nwaneri', 'MF', 'B', 19, [], 'T'],
     ['Lucas Bergvall', 'MF', 'B', 20, [], 'T'], ['Rico Lewis', 'MF', 'B', 21, [], ''], ['Adam Wharton', 'MF', 'B', 22, ['pas'], 'T'],
     ['Carlos Baleba', 'MF', 'B', 22, [], 'T'], ['Jamie Gittens', 'MF', 'B', 22, ['dri'], 'T'], ['Ben Seghir', 'MF', 'B', 21, [], ''],
@@ -266,14 +266,14 @@ const League = (() => {
     scp: [32, 25, 22, 27, 26, 29], // Rui Silva, Gonçalo Inácio, Diomande, Hjulmand, Trincão, Luis Javier Suárez
     aja: [25, 23, 26, 24, 33, 34], // Jaroš, Youri Baas, Šutalo, Kenneth Taylor, Klaassen, Weghorst
     psv: [27, 25, 23, 29, 37, 23], // Kovář, Dest, Flamingo, Guus Til, Perišić, Ricardo Pepi
-    com: [31, 31, 21, 23, 26, 27], // Butez, Kempf, Jacobo Ramón, Perrone, Caqueret, Douvikas
+    com: [31, 31, 21, 23, 22, 27], // Butez, Kempf, Jacobo Ramón, Perrone, Nico Paz, Douvikas
     rbl: [36, 23, 28, 29, 27, 19], // Gulácsi, Lukeba, Raum, Schlager, Baumgartner, Yan Diomande
   };
   // potensi tersembunyi pemain klub tertentu (sisanya dihitung dari umur)
-  const CLUB_POT = { 'com-4': 'T', 'rbl-9': 'ST', 'scp-4': 'T', 'ben-2': 'T' };
+  const CLUB_POT = { 'com-4': 'T', 'com-11': 'ST', 'rbl-9': 'ST', 'scp-4': 'T', 'ben-2': 'T' };
   // Ekonomi (dalam juta). Juara liga + piala 3 musim beruntun ~ 70 jt = 1 pemain S termurah.
   const MARKET = {
-    START_MONEY: 10, MIN_SQUAD: 6, MIN_FIRST: 8, MAX_SQUAD: 10, SELL_RATE: 0.4,
+    START_MONEY: 10, START_MONEY_P: 20, MIN_SQUAD: 6, MIN_FIRST: 8, MAX_SQUAD: 10, SELL_RATE: 0.4,
     PRICE: { S: 70, A: 18, B: 5, C: 1.5 }, TRAIT_BONUS: 0.1,
     LEAGUE_PRIZE: [12, 9, 7, 6, 5, 4.5, 4, 3.5, 3, 2.7, 2.3, 2, 1.5, 1.3, 1.2, 1],
     CUP_PRIZE: { 'Babak 32 Besar': 0.3, 'Babak 16 Besar': 0.5, 'Perempat Final': 1, 'Semifinal': 2, 'Final': 3, 'Juara': 5 },
@@ -408,7 +408,7 @@ const League = (() => {
     save.market = true;
     save.players = {};
     for (const c of save.clubs) {
-      c.roster = []; c.lineup = {}; c.money = MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
+      c.roster = []; c.lineup = {}; c.money = isDiv() && c.div === 1 ? MARKET.START_MONEY_P : MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
       for (const n of NUMS) {
         const id = c.id + '-' + n;
         save.players[id] = makePlayer(id, SQUADS[c.id][n], ROLE_OF[n], TIERS[c.id][n], CLUB_AGES[c.id][NUMS.indexOf(n)], (TRAIT_DATA[c.id] || {})[n] || [], CLUB_POT[id] || '', c.id);
@@ -1469,6 +1469,12 @@ const League = (() => {
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
+    const ss = el('shopSearch');
+    if (ss) ss.oninput = () => {
+      shopQuery = ss.value; const pos = ss.selectionStart;
+      showHub();
+      const n = el('shopSearch'); n.focus(); n.setSelectionRange(pos, pos);
+    };
     hub.querySelectorAll('[data-vdiv]').forEach(b => { b.onclick = () => { divView = +b.dataset.vdiv; showHub(); }; });
     hub.querySelectorAll('[data-scomp]').forEach(b => { b.onclick = () => { statComp = b.dataset.scomp; showHub(); }; });
     if (el('btnAutoLineup')) el('btnAutoLineup').onclick = () => { autoLineup(club(save.user)); persist(); showHub(); };
@@ -1501,7 +1507,9 @@ const League = (() => {
   const ageCell = p => `<span class="age${p.age <= 21 ? ' young' : p.age >= 33 ? ' old' : ''}">${p.age}</span>`;
   const AGE_FILTER = { all: () => true, u21: a => a <= 21, mid: a => a >= 22 && a <= 29, old: a => a >= 30 };
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
-  let shopRole = 'all', shopTier = 'all', shopAge = 'all';
+  let shopRole = 'all', shopTier = 'all', shopAge = 'all', shopQuery = '';
+  // cari nama tanpa peduli huruf besar & aksen (mis. "odegaard" = "Ødegaard")
+  const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ı/g, 'i');
   let divView = null, statComp = null; // tampilan divisi (klasemen/skuad) & kompetisi (statistik)
   const curDivView = () => divView || (save.user ? divOf(save.user) : 1);
   const divSeg = () => `<div class="seg div-seg">${[1, 2].map(d => `<button type="button" data-vdiv="${d}" class="${curDivView() === d ? 'on' : ''}">${DIV_NAME[d]}</button>`).join('')}</div>`;
@@ -1593,7 +1601,7 @@ const League = (() => {
 
   function shopTab() {
     const c = club(save.user);
-    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age))
+    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age) && (!shopQuery || norm(p.name).includes(norm(shopQuery))))
       .sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
     const why = p => !save.window ? 'Jendela transfer tutup' : soldByMe(c, p.id) ? 'Baru kamu jual (tidak bisa dibeli lagi di jendela ini)'
       : refusedBy(c, p.id) ? 'Menolak klubmu (coba lagi musim depan)'
@@ -1604,6 +1612,7 @@ const League = (() => {
         ${filt('frole', shopRole, [['all', 'Semua'], ['GK', 'Kiper'], ['DF', 'Bek'], ['MF', 'Gelandang'], ['FW', 'Penyerang']])}
         ${filt('ftier', shopTier, [['all', 'Semua tier'], ['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C']])}
         ${filt('fage', shopAge, [['all', 'Semua umur'], ['u21', '≤21'], ['mid', '22–29'], ['old', '30+']])}
+        <input type="search" id="shopSearch" class="shop-search" placeholder="🔍 Cari pemain…" value="${h(shopQuery)}" autocomplete="off">
       </div>
       <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th>${isDiv() ? '<th title="Minat bergabung dengan klubmu">Minat</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
