@@ -1146,6 +1146,10 @@ const League = (() => {
       entry.prize = prize;
       // simpan statistik pemain musim ini (dilihat saat jendela transfer berikutnya)
       save.lastStats = { season: seasonName(save.year), stats: clubPlayerStats(save.user) };
+      // statistik semua pemain (untuk tab Skuad saat jendela transfer)
+      const all = {};
+      for (const c of save.clubs) Object.assign(all, clubPlayerStats(c.id));
+      save.lastStatsAll = { season: seasonName(save.year), stats: all };
       // umur bertambah & atribut berkembang/menurun
       entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
     }
@@ -1782,16 +1786,25 @@ const League = (() => {
       const grade = v => v >= 4 ? 'S+' : v >= 3 ? 'S' : v >= 2 ? 'A' : v >= 1 ? 'B' : v >= 0 ? 'C' : 'D';
       const cell = (v, key) => `<td><span class="ag g${grade(v).replace('+', 'p')}" title="${key}">${grade(v)}</span></td>`;
       const clubs = save.clubs.filter(c => !isDiv() || c.div === curDivView()).sort((a, b) => lineupStrength(b.id) - lineupStrength(a.id));
-      return `${isDiv() ? divSeg() : ''}<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.</p>
-        <div class="sq-grid">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
+      // statistik pemain (Main, Gol, Assist, Rating) semua kompetisi; saat jendela transfer = musim lalu
+      const M = isMarket();
+      let stLabel = '', st = {};
+      if (M) {
+        if (save.window && save.lastStatsAll) { stLabel = `Musim ${save.lastStatsAll.season}`; st = save.lastStatsAll.stats; }
+        else if (!save.window) { stLabel = `Musim ${seasonName(save.year)}`; for (const c of clubs) Object.assign(st, clubPlayerStats(c.id)); }
+        else stLabel = 'Musim ini (belum ada laga)';
+      }
+      const stH = M ? '<th class="st-h" title="Jumlah main">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h" title="Rata-rata rating">Rating</th>' : '';
+      return `${isDiv() ? divSeg() : ''}<p class="muted sq-note">Atribut: <b>Tem</b>bak · <b>Ope</b>r · <b>Ber</b>tahan · <b>Kon</b>trol · <b>Kip</b>er. Ciri: 🎯 Finisher · 🅿️ Pengumpan · 💨 Dribbler · 🧱 Tembok.${M ? ` Statistik: <b>${h(stLabel)}</b> (semua kompetisi).` : ''}</p>
+        <div class="sq-grid${M ? ' wide' : ''}">${clubs.map(c => `<div class="sq ${isMe(c.id) ? 'me-row' : ''}">
           <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small title="Dari tier 6 pemain inti">${stars(lineupStrength(c.id))}</small></div>
-          <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th>${isMarket() ? '<th>Umur</th>' : ''}<th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
+          <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th>${isMarket() ? '<th>Umur</th>' : ''}<th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>${stH}</tr></thead><tbody>
           ${NUMS.map(n => { const ps = pseudo(c.id, n), tr = (c.traits || {})[n] || [];
             return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${isMarket() && P(c.lineup[n]) ? pLink(P(c.lineup[n])) : h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
               ${isMarket() && P(c.lineup[n]) ? `<td>${ageCell(P(c.lineup[n]))}</td>` : ''}<td><span class="tier-b t${ps.tier}">${ps.tier}</span></td>
-              ${['sht', 'pas', 'def', 'ctl'].map(a => cell(attr(ps, a), a)).join('')}${ps.role === 'GK' ? cell(attr(ps, 'kep'), 'kep') : '<td class="muted">-</td>'}</tr>`; }).join('')}
+              ${['sht', 'pas', 'def', 'ctl'].map(a => cell(attr(ps, a), a)).join('')}${ps.role === 'GK' ? cell(attr(ps, 'kep'), 'kep') : '<td class="muted">-</td>'}${M ? statCells(st[c.lineup[n]]) : ''}</tr>`; }).join('')}
           ${isMarket() ? c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P).map(p => `<tr class="bench-row"><td class="l"><small class="muted">Cad</small> ${pLink(p)} ${traitIcons(p)} <small class="muted">${ROLE_SHORT[p.role]}</small></td>
-              <td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}</tr>`).join('') : ''}
+              <td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(st[p.id])}</tr>`).join('') : ''}
           </tbody></table></div>`).join('')}</div>`;
     }
     if (tab === 'cup') {

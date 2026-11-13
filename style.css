@@ -663,6 +663,7 @@ aside { display: grid; gap: 16px; }
 .tier-b.tS { background: #fbbf24; } .tier-b.tA { background: #a3e635; } .tier-b.tB { background: #7dd3fc; } .tier-b.tC { background: #cbd5e1; }
 .sq-note { margin: 0 0 10px; font-size: 13px; }
 .sq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+.sq-grid.wide { grid-template-columns: repeat(auto-fill, minmax(min(100%, 600px), 1fr)); }
 @media (max-width: 440px) { .sq-grid { grid-template-columns: 1fr; } }
 .sq { background: #0a1120; border: 1px solid var(--border); border-radius: 12px; padding: 10px; overflow-x: auto; }
 .sq-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
