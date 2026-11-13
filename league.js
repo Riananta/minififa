@@ -1442,7 +1442,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : isMarket() && save.window ? windowCard() : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan']]
+        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -1474,6 +1474,12 @@ const League = (() => {
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
+    const fs = el('findSearch');
+    if (fs) fs.oninput = () => {
+      findQuery = fs.value; const pos = fs.selectionStart;
+      showHub();
+      const n = el('findSearch'); n.focus(); n.setSelectionRange(pos, pos);
+    };
     const ss = el('shopSearch');
     if (ss) ss.oninput = () => {
       shopQuery = ss.value; const pos = ss.selectionStart;
@@ -1525,6 +1531,8 @@ const League = (() => {
       <h2>${h(p.name)} ${traitIcons(p)}</h2>
       <div class="trade-p"><span>${ROLE_ID[p.role]} · Tier ${tierBadge(p.tier)} · ${p.age} tahun</span>
         <span>${p.club ? `${badge(p.club)} <b>${h(club(p.club).name)}</b>` : '<span class="muted">Tanpa klub (di toko)</span>'}</span></div>
+      <table class="tbl my-tbl"><thead><tr><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Nilai pasar</th></tr></thead>
+        <tbody><tr>${attrCells(p)}<td><b>${fmtM(price(p))}</b></td></tr></tbody></table>
       <h4 class="aw-h">📜 Riwayat Klub</h4>
       ${car.length ? `<table class="tbl car-tbl"><tbody>${car.map(st => `<tr><td class="l">${badge(st.c)} ${h(club(st.c).name)}</td><td>${stintText(st)}</td></tr>`).join('')}</tbody></table>`
         : '<p class="muted">Belum ada riwayat klub.</p>'}
@@ -1624,6 +1632,26 @@ const League = (() => {
       ${save.ledger.length ? `<div class="ledger">${save.ledger.slice(0, 15).map(l => `<div><span>${l.season} · ${h(l.label)}</span><b class="${l.amount < 0 ? 'neg' : 'pos'}">${l.amount < 0 ? '−' : '+'}${fmtM(Math.abs(l.amount))}</b></div>`).join('')}</div>` : '<p class="muted">Belum ada transaksi.</p>'}`;
   }
 
+  // Cari pemain di semua klub & toko: klub sekarang, posisi, umur, tier, atribut
+  let findQuery = '';
+  const FIND_MAX = 60;
+  function findTab() {
+    const q = norm(findQuery.trim());
+    const all = Object.values(save.players);
+    const hits = q ? all.filter(p => norm(p.name).includes(q))
+      .sort((a, b) => TV[b.tier] - TV[a.tier] || a.name.localeCompare(b.name)) : [];
+    const where = p => p.club ? `${badge(p.club)} <span class="${isMe(p.club) ? 'me' : ''}">${h(club(p.club).name)}</span>${isDiv() ? ` <small class="muted">${DIV_NAME[club(p.club).div]}</small>` : ''}`
+      : '<span class="muted">🛒 Toko Pemain</span>';
+    return `<div class="shop-head"><input type="search" id="findSearch" class="shop-search" placeholder="🔍 Ketik nama pemain (semua klub & toko)…" value="${h(findQuery)}" autocomplete="off">
+        <span class="muted">${all.length} pemain terdaftar</span></div>
+      ${!q ? '<p class="muted">Ketik sebagian nama pemain, mis. "mbap", "odegaard", "nico". Klik nama untuk profil & riwayat klub.</p>'
+        : !hits.length ? '<p class="muted">Tidak ada pemain dengan nama itu.</p>'
+        : `<div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th class="l">Klub sekarang</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Nilai</th></tr></thead><tbody>
+          ${hits.slice(0, FIND_MAX).map(p => `<tr class="${isMe(p.club) ? 'me-row' : ''}"><td class="l">${pLink(p)} ${traitIcons(p)}</td><td class="l">${where(p)}</td><td>${ROLE_SHORT[p.role]}</td>
+            <td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}<td>${fmtM(price(p))}</td></tr>`).join('')}
+        </tbody></table></div>${hits.length > FIND_MAX ? `<p class="muted sq-note">Menampilkan ${FIND_MAX} dari ${hits.length} hasil, ketik lebih spesifik.</p>` : ''}`}`;
+  }
+
   function shopTab() {
     const c = club(save.user);
     const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age) && (!shopQuery || norm(p.name).includes(norm(shopQuery))))
@@ -1685,8 +1713,9 @@ const League = (() => {
   }
 
   function tabBody() {
-    if ((tab === 'my' || tab === 'shop') && !isMarket()) tab = 'table';
+    if ((tab === 'my' || tab === 'shop' || tab === 'find') && !isMarket()) tab = 'table';
     if (tab === 'my') return myTab();
+    if (tab === 'find') return findTab();
     if (tab === 'shop') return shopTab();
     if ((tab === 'ucl') && !isDiv()) tab = 'table';
     if (tab === 'table') {
