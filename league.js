@@ -1469,6 +1469,12 @@ const League = (() => {
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
+    const ss = el('shopSearch');
+    if (ss) ss.oninput = () => {
+      shopQuery = ss.value; const pos = ss.selectionStart;
+      showHub();
+      const n = el('shopSearch'); n.focus(); n.setSelectionRange(pos, pos);
+    };
     hub.querySelectorAll('[data-vdiv]').forEach(b => { b.onclick = () => { divView = +b.dataset.vdiv; showHub(); }; });
     hub.querySelectorAll('[data-scomp]').forEach(b => { b.onclick = () => { statComp = b.dataset.scomp; showHub(); }; });
     if (el('btnAutoLineup')) el('btnAutoLineup').onclick = () => { autoLineup(club(save.user)); persist(); showHub(); };
@@ -1501,7 +1507,9 @@ const League = (() => {
   const ageCell = p => `<span class="age${p.age <= 21 ? ' young' : p.age >= 33 ? ' old' : ''}">${p.age}</span>`;
   const AGE_FILTER = { all: () => true, u21: a => a <= 21, mid: a => a >= 22 && a <= 29, old: a => a >= 30 };
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
-  let shopRole = 'all', shopTier = 'all', shopAge = 'all';
+  let shopRole = 'all', shopTier = 'all', shopAge = 'all', shopQuery = '';
+  // cari nama tanpa peduli huruf besar & aksen (mis. "odegaard" = "Ødegaard")
+  const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ı/g, 'i');
   let divView = null, statComp = null; // tampilan divisi (klasemen/skuad) & kompetisi (statistik)
   const curDivView = () => divView || (save.user ? divOf(save.user) : 1);
   const divSeg = () => `<div class="seg div-seg">${[1, 2].map(d => `<button type="button" data-vdiv="${d}" class="${curDivView() === d ? 'on' : ''}">${DIV_NAME[d]}</button>`).join('')}</div>`;
@@ -1593,7 +1601,7 @@ const League = (() => {
 
   function shopTab() {
     const c = club(save.user);
-    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age))
+    const list = freeAgents().filter(p => (shopRole === 'all' || p.role === shopRole) && (shopTier === 'all' || p.tier === shopTier) && AGE_FILTER[shopAge](p.age) && (!shopQuery || norm(p.name).includes(norm(shopQuery))))
       .sort((a, b) => price(b) - price(a) || a.name.localeCompare(b.name));
     const why = p => !save.window ? 'Jendela transfer tutup' : soldByMe(c, p.id) ? 'Baru kamu jual (tidak bisa dibeli lagi di jendela ini)'
       : refusedBy(c, p.id) ? 'Menolak klubmu (coba lagi musim depan)'
@@ -1604,6 +1612,7 @@ const League = (() => {
         ${filt('frole', shopRole, [['all', 'Semua'], ['GK', 'Kiper'], ['DF', 'Bek'], ['MF', 'Gelandang'], ['FW', 'Penyerang']])}
         ${filt('ftier', shopTier, [['all', 'Semua tier'], ['S', 'S'], ['A', 'A'], ['B', 'B'], ['C', 'C']])}
         ${filt('fage', shopAge, [['all', 'Semua umur'], ['u21', '≤21'], ['mid', '22–29'], ['old', '30+']])}
+        <input type="search" id="shopSearch" class="shop-search" placeholder="🔍 Cari pemain…" value="${h(shopQuery)}" autocomplete="off">
       </div>
       <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th>${isDiv() ? '<th title="Minat bergabung dengan klubmu">Minat</th>' : ''}<th></th></tr></thead><tbody>
       ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
