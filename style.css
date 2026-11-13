@@ -761,3 +761,9 @@ aside { display: grid; gap: 16px; }
 
 .shop-search { flex: 1 1 180px; min-width: 160px; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 13px; }
 .shop-search:focus { outline: 2px solid #facc15; outline-offset: 0; }
+
+.plink { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.plink:hover { color: #facc15; text-decoration: underline; }
+.plink.pi { font-size: 13px; opacity: .8; }
+.plink.pi:hover { text-decoration: none; opacity: 1; }
+.car-tbl td { padding: 5px 8px; }
