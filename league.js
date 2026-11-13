@@ -364,7 +364,8 @@ const League = (() => {
   const rollYouthPot = () => { const r = Math.random(); return r < 0.15 ? rint(85, 93) : r < 0.5 ? rint(75, 84) : rint(64, 74); };
   function makePlayer(id, name, role, tier, age, traits, pot, clubId) {
     const ovr = OVR_BASE[tier] + rint(-2, 2);
-    return { id, name, role, tier, traits, club: clubId, age, ovr, pot: initPotential(ovr, age, pot) };
+    return { id, name, role, tier, traits, club: clubId, age, ovr, pot: initPotential(ovr, age, pot),
+      career: clubId ? [{ c: clubId, from: START_YEAR }] : [] }; // riwayat klub (tahun awal musim)
   }
   // dipanggil sekali di akhir musim: umur +1, OVR berubah, tier menyesuaikan
   function developPlayers() {
@@ -512,6 +513,7 @@ const League = (() => {
       return 'refused';
     }
     c.money = r2(c.money - price(p)); p.club = c.id; c.roster.push(pid);
+    (p.career = p.career || []).push({ c: c.id, from: save.year });
     addLedger(c.id, `Beli ${p.name}`, -price(p));
     save.news.unshift(`${club(c.id).name} membeli ${p.name} (${p.tier}) seharga ${fmtM(price(p))}`);
     return true;
@@ -525,6 +527,9 @@ const League = (() => {
     if (!canSell(c, pid)) return false;
     const p = P(pid);
     c.money = r2(c.money + sellPrice(p)); p.club = null; c.roster = c.roster.filter(x => x !== pid);
+    // tutup masa bermain di klub ini (dibeli & dijual di jendela yang sama = tidak dicatat)
+    const st = (p.career || [])[(p.career || []).length - 1];
+    if (st && st.c === c.id && st.to == null) { if (st.from >= save.year) p.career.pop(); else st.to = save.year - 1; }
     (save.soldBy = save.soldBy || {})[pid] = c.id;
     addLedger(c.id, `Jual ${p.name}`, sellPrice(p));
     save.news.unshift(`${club(c.id).name} menjual ${p.name} (${p.tier}) ke toko seharga ${fmtM(sellPrice(p))}`);
@@ -629,6 +634,7 @@ const League = (() => {
       const ages = {};
       SHOP_DATA.forEach(d => { ages[d[0]] = d[3]; });
       for (const c of [...CLUBS, ...CLUBS2]) NUMS.forEach((n, i) => { ages[SQUADS[c.id][n]] = CLUB_AGES[c.id][i]; });
+      for (const p of Object.values(save.players)) if (!p.career) p.career = p.club ? [{ c: p.club, from: save.year }] : [];
       for (const p of Object.values(save.players)) if (p.age == null) {
         p.age = ages[p.name] || 27; p.ovr = OVR_BASE[p.tier] || 60; p.pot = initPotential(p.ovr, p.age, '');
       }
@@ -1469,6 +1475,7 @@ const League = (() => {
     hub.querySelectorAll('[data-frole]').forEach(b => { b.onclick = () => { shopRole = b.dataset.frole; showHub(); }; });
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
+    hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
     const ss = el('shopSearch');
     if (ss) ss.oninput = () => {
       shopQuery = ss.value; const pos = ss.selectionStart;
@@ -1507,6 +1514,26 @@ const League = (() => {
   const ageCell = p => `<span class="age${p.age <= 21 ? ' young' : p.age >= 33 ? ' old' : ''}">${p.age}</span>`;
   const AGE_FILTER = { all: () => true, u21: a => a <= 21, mid: a => a >= 22 && a <= 29, old: a => a >= 30 };
   const traitIcons = p => p.traits.map(t => TRAITS[t].icon).join('');
+  // nama pemain yang bisa diklik → profil & riwayat klub
+  const pLink = p => `<button type="button" class="plink" data-pinfo="${p.id}">${h(p.name)}</button>`;
+  const pInfo = p => `<button type="button" class="plink pi" data-pinfo="${p.id}" title="Profil & riwayat ${h(p.name)}">ℹ️</button>`;
+  const stintText = st => `${st.from}–${st.to == null ? 'sekarang' : st.to + 1}`;
+  function showPlayer(pid) {
+    const p = P(pid);
+    if (!p) return;
+    const car = (p.career || []).slice().reverse();
+    const x = p.club ? clubPlayerStats(p.club)[p.id] : null;
+    showModal(`
+      <h2>${h(p.name)} ${traitIcons(p)}</h2>
+      <div class="trade-p"><span>${ROLE_ID[p.role]} · Tier ${tierBadge(p.tier)} · ${p.age} tahun</span>
+        <span>${p.club ? `${badge(p.club)} <b>${h(club(p.club).name)}</b>` : '<span class="muted">Tanpa klub (di toko)</span>'}</span></div>
+      <h4 class="aw-h">📜 Riwayat Klub</h4>
+      ${car.length ? `<table class="tbl car-tbl"><tbody>${car.map(st => `<tr><td class="l">${badge(st.c)} ${h(club(st.c).name)}</td><td>${stintText(st)}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted">Belum ada riwayat klub.</p>'}
+      ${x && x.apps ? `<h4 class="aw-h">Musim ini</h4><p>Main <b>${x.apps}</b> · Gol <b>${x.g}</b> · Assist <b>${x.a}</b> · Rating <b>${x.avg.toFixed(2)}</b></p>` : ''}
+      <div class="btns"><button class="btn primary" id="btnPOk">Tutup</button></div>`);
+    el('btnPOk').onclick = () => hideModal();
+  }
   let shopRole = 'all', shopTier = 'all', shopAge = 'all', shopQuery = '';
   // cari nama tanpa peduli huruf besar & aksen (mis. "odegaard" = "Ødegaard")
   const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ı/g, 'i');
@@ -1584,7 +1611,7 @@ const League = (() => {
       ${NUMS.map(n => { const p = P(c.lineup[n]), et = effTier(p, n), off = p.role !== ROLE_OF[n];
         const pp = { ...p, role: ROLE_OF[n], tier: et };
         return `<tr><td><b>${SLOT_LABEL[n]}</b></td>
-          <td class="l"><select data-slot="${n}">${opt(n, p.id)}</select> ${traitIcons(p)}${off ? ` <small class="warn" title="Bermain di luar posisi: tier turun 1">⚠️ luar posisi</small>` : ''}</td>
+          <td class="l"><select data-slot="${n}">${opt(n, p.id)}</select> ${pInfo(p)} ${traitIcons(p)}${off ? ` <small class="warn" title="Bermain di luar posisi: tier turun 1">⚠️ luar posisi</small>` : ''}</td>
           <td>${ageCell(p)}</td><td>${tierBadge(et)}</td>${attrCells(pp)}${statCells(ms.st[p.id])}</tr>`; }).join('')}
       </tbody></table></div>
       <p class="muted sq-note">Pilih pemain untuk tiap posisi (memilih pemain dari posisi lain = tukar). Bermain di luar posisi asli: tier turun 1. Posisi kiper hanya untuk kiper.
@@ -1592,7 +1619,7 @@ const League = (() => {
       <h4 class="aw-h">Cadangan (${bench.length})</h4>
       ${bench.length ? `<div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
         <th class="st-h">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h">Rating</th><th>Jual</th></tr></thead><tbody>
-        ${bench.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(ms.st[p.id])}
+        ${bench.map(p => `<tr><td class="l">${pLink(p)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}${statCells(ms.st[p.id])}
           <td>${save.window ? `<button class="btn sm ghost" data-sell="${p.id}" ${canSell(c, p.id) ? '' : 'disabled'}>Jual ${fmtM(sellPrice(p))}</button>` : '<span class="muted">-</span>'}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">Belum ada cadangan. Beli di tab Toko Pemain saat jendela transfer terbuka.</p>'}
       <h4 class="aw-h">Keuangan</h4>
@@ -1615,7 +1642,7 @@ const League = (() => {
         <input type="search" id="shopSearch" class="shop-search" placeholder="🔍 Cari pemain…" value="${h(shopQuery)}" autocomplete="off">
       </div>
       <div class="tbl-wrap"><table class="tbl shop-tbl"><thead><tr><th class="l">Pemain</th><th>Posisi</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th><th>Harga</th>${isDiv() ? '<th title="Minat bergabung dengan klubmu">Minat</th>' : ''}<th></th></tr></thead><tbody>
-      ${list.map(p => `<tr><td class="l">${h(p.name)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
+      ${list.map(p => `<tr><td class="l">${pLink(p)} ${traitIcons(p)}</td><td>${ROLE_SHORT[p.role]}</td><td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}
         <td><b>${fmtM(price(p))}</b></td>${isDiv() ? `<td title="${willLabel(willChance(c, p))[1]}">${willLabel(willChance(c, p))[0]}</td>` : ''}
         <td>${why(p) ? `<small class="muted">${why(p)}</small>` : `<button class="btn sm primary" data-buy="${p.id}">Beli</button>`}</td></tr>`).join('')}
       </tbody></table></div>
@@ -1733,10 +1760,10 @@ const League = (() => {
           <div class="sq-head">${badge(c.id)}<b>${h(c.name)}</b>${isMarket() ? `<small class="muted">💰 ${fmtM(c.money)}</small>` : ''}<small title="Dari tier 6 pemain inti">${stars(lineupStrength(c.id))}</small></div>
           <table class="tbl sq-tbl"><thead><tr><th class="l">Pemain</th>${isMarket() ? '<th>Umur</th>' : ''}<th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th></tr></thead><tbody>
           ${NUMS.map(n => { const ps = pseudo(c.id, n), tr = (c.traits || {})[n] || [];
-            return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
+            return `<tr><td class="l"><small class="muted">${ROLE_ID[ps.role].slice(0, 3)}</small> ${isMarket() && P(c.lineup[n]) ? pLink(P(c.lineup[n])) : h(pname(c.id, n))} ${tr.map(t => TRAITS[t].icon).join('')}</td>
               ${isMarket() && P(c.lineup[n]) ? `<td>${ageCell(P(c.lineup[n]))}</td>` : ''}<td><span class="tier-b t${ps.tier}">${ps.tier}</span></td>
               ${['sht', 'pas', 'def', 'ctl'].map(a => cell(attr(ps, a), a)).join('')}${ps.role === 'GK' ? cell(attr(ps, 'kep'), 'kep') : '<td class="muted">-</td>'}</tr>`; }).join('')}
-          ${isMarket() ? c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P).map(p => `<tr class="bench-row"><td class="l"><small class="muted">Cad</small> ${h(p.name)} ${traitIcons(p)} <small class="muted">${ROLE_SHORT[p.role]}</small></td>
+          ${isMarket() ? c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P).map(p => `<tr class="bench-row"><td class="l"><small class="muted">Cad</small> ${pLink(p)} ${traitIcons(p)} <small class="muted">${ROLE_SHORT[p.role]}</small></td>
               <td>${ageCell(p)}</td><td>${tierBadge(p.tier)}</td>${attrCells(p)}</tr>`).join('') : ''}
           </tbody></table></div>`).join('')}</div>`;
     }
