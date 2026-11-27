@@ -787,3 +787,16 @@ aside { display: grid; gap: 16px; }
 /* petunjuk pasang aplikasi */
 .pwa-steps { text-align: left; margin: 8px 0; padding-left: 22px; line-height: 1.7; }
 .pwa-note { font-size: 12px; }
+
+/* Hall of Fame */
+.hof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; margin-bottom: 8px; }
+.hof-card { background: #0a1120; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.hof-card:not(.empty) { border-color: rgba(250, 204, 21, .45); box-shadow: inset 0 0 0 1px rgba(250, 204, 21, .12); }
+.hof-t { display: flex; align-items: flex-start; gap: 10px; }
+.hof-t > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.hof-t small { color: var(--muted); font-size: 12px; }
+.hof-t em { font-style: normal; font-weight: 900; color: #facc15; font-size: 18px; }
+.hof-card.empty .hof-t em { color: var(--muted); }
+.hof-i { font-size: 26px; line-height: 1; }
+.hof-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; max-height: 220px; overflow-y: auto; }
+.hof-none { margin-top: 8px; font-size: 12px; }
