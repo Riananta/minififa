@@ -850,7 +850,7 @@ const League = (() => {
   // pemain semu untuk menghitung atribut (memakai fungsi attr() dari mesin game)
   const pseudo = (cid, n) => { const c = club(cid); return { role: ROLE_OF[n], tier: (c.tiers || {})[n] || 'B', traits: (c.traits || {})[n] || [] }; };
   function simScore(hid, aid) {
-    const d = (strength(hid) - strength(aid)) / 22;
+    const d = (strength(hid) - strength(aid)) / 18; // dulu /22: tim kuat kini sedikit lebih diunggulkan
     return [poisson(1.45 * Math.exp(d)), poisson(1.15 * Math.exp(-d))];
   }
   // Adu penalti: 5 tendangan per tim, lalu sudden death
@@ -1589,6 +1589,11 @@ const League = (() => {
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
+    hub.querySelectorAll('[data-hof]').forEach(c => { c.onclick = e => {
+      if (e.target.closest('[data-pinfo]')) return; // klik nama pemain = buka profil
+      const k = c.dataset.hof; if (hofOpen.has(k)) hofOpen.delete(k); else hofOpen.add(k);
+      showHub();
+    }; });
     hub.querySelectorAll('[data-psort]').forEach(b => { b.onclick = () => {
       if (pSort === b.dataset.psort) pAsc = !pAsc; else { pSort = b.dataset.psort; pAsc = false; }
       showHub();
@@ -1827,6 +1832,7 @@ const League = (() => {
   // batas dikalibrasi dari simulasi beberapa musim (rata-rata top skor ±40 gol, top assist ±22, gol liga klub terbanyak ±55)
   const HOF = { GOALS: 50, ASSISTS: 25, ALLROUND_G: 20, ALLROUND_A: 12, WONDER_AGE: 20, WONDER_G: 25,
     LEGEND_POTS: 2, COLLECTOR: 8, LOYAL: 8, LEAGUE_GF: 55, LEAGUE_GA: 22, LEAGUE_PTS: 62, DYNASTY: 3 };
+  const hofOpen = new Set();
   function hofTab() {
     const hist = save.history, D = isDiv();
     const cl = id => `${badge(id)} <b class="${isMe(id) ? 'me' : ''}">${h(club(id).name)}</b>`;
@@ -1878,9 +1884,12 @@ const League = (() => {
         return Object.entries(n).filter(([, v]) => v >= HOF.LOYAL).map(([c, v]) => `${pl(p, c)} <small class="muted">${v} musim</small>`); }));
     add('Pemain', '🔄', 'Lahir Kembali', 'Meraih trofi lagi setelah pensiun di umur 45 dan memulai karier baru dari umur 17.',
       hon.filter(r => r.rebornTitles > 0).map(r => `${pl(r.p)} <small class="muted">${r.rebornTitles} trofi setelah kembali ke 17 th</small>`));
-    const card = c => `<div class="hof-card${c.items.length ? '' : ' empty'}"><div class="hof-t"><span class="hof-i">${c.icon}</span><div><b>${c.name}</b><small>${c.rule}</small></div>
-        <em>${c.items.length}</em></div>
-      ${c.items.length ? `<div class="hof-list">${c.items.slice(-30).reverse().map(x => `<div>${x}</div>`).join('')}</div>` : '<div class="muted hof-none">Belum ada — jadilah yang pertama!</div>'}</div>`;
+    // daftar peraih baru tampil saat kartu diklik
+    const card = c => { const open = hofOpen.has(c.name);
+      return `<div class="hof-card${c.items.length ? '' : ' empty'}${open ? ' open' : ''}" data-hof="${h(c.name)}" role="button" tabindex="0">
+        <div class="hof-t"><span class="hof-i">${c.icon}</span><div><b>${c.name}</b><small>${c.rule}</small></div><em>${c.items.length}</em></div>
+        ${!open ? `<div class="muted hof-none">${c.items.length ? `▸ Klik untuk melihat ${c.items.length} peraih` : 'Belum ada — jadilah yang pertama!'}</div>`
+          : c.items.length ? `<div class="hof-list">${c.items.slice(-30).reverse().map(x => `<div>${x}</div>`).join('')}</div>` : '<div class="muted hof-none">Belum ada — jadilah yang pertama!</div>'}</div>`; };
     return `<p class="muted sq-note">Prestasi langka sepanjang karier ini. Rekor klub per musim (Invincibles, Mesin Gol, Tembok Baja, Penguasa Mutlak) tercatat mulai musim yang selesai setelah fitur ini aktif;
         prestasi pemain dihitung dari riwayat per musim pemain.</p>
       ${['Klub', 'Pemain'].map(g => `<h4 class="aw-h">${g === 'Klub' ? '🏟️ Klub' : '👤 Pemain'}</h4><div class="hof-grid">${cats.filter(c => c.group === g).map(card).join('')}</div>`).join('')}`;
