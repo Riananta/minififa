@@ -800,3 +800,13 @@ aside { display: grid; gap: 16px; }
 .hof-i { font-size: 26px; line-height: 1; }
 .hof-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; max-height: 220px; overflow-y: auto; }
 .hof-none { margin-top: 8px; font-size: 12px; }
+
+/* HP: isi tab tidak melebar melewati layar; tabel/bagan lebar bisa digeser ke samping */
+.hub > * { min-width: 0; }
+.tab-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tbl-wrap, .bracket, .sq { -webkit-overflow-scrolling: touch; }
+.seg { flex-wrap: wrap; }
+.grp-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+
+.hof-card { cursor: pointer; transition: border-color .15s; }
+.hof-card:hover { border-color: rgba(250, 204, 21, .7); }
