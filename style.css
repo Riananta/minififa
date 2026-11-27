@@ -783,3 +783,7 @@ aside { display: grid; gap: 16px; }
 .br-m .br-hd em { font-weight: 600; }
 .br-m .br-t em.pen { color: #facc15; }
 .br-m .br-t.lose em.pen { color: inherit; }
+
+/* petunjuk pasang aplikasi */
+.pwa-steps { text-align: left; margin: 8px 0; padding-left: 22px; line-height: 1.7; }
+.pwa-note { font-size: 12px; }
