@@ -1589,11 +1589,7 @@ const League = (() => {
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
-    hub.querySelectorAll('[data-hof]').forEach(c => { c.onclick = e => {
-      if (e.target.closest('[data-pinfo]')) return; // klik nama pemain = buka profil
-      const k = c.dataset.hof; if (hofOpen.has(k)) hofOpen.delete(k); else hofOpen.add(k);
-      showHub();
-    }; });
+    hub.querySelectorAll('[data-hof]').forEach(c => { c.onclick = () => showHofModal(+c.dataset.hof); });
     hub.querySelectorAll('[data-psort]').forEach(b => { b.onclick = () => {
       if (pSort === b.dataset.psort) pAsc = !pAsc; else { pSort = b.dataset.psort; pAsc = false; }
       showHub();
@@ -1832,7 +1828,20 @@ const League = (() => {
   // batas dikalibrasi dari simulasi beberapa musim (rata-rata top skor ±40 gol, top assist ±22, gol liga klub terbanyak ±55)
   const HOF = { GOALS: 50, ASSISTS: 25, ALLROUND_G: 20, ALLROUND_A: 12, WONDER_AGE: 20, WONDER_G: 25,
     LEGEND_POTS: 2, COLLECTOR: 8, LOYAL: 8, LEAGUE_GF: 55, LEAGUE_GA: 22, LEAGUE_PTS: 62, DYNASTY: 3 };
-  const hofOpen = new Set();
+  let hofCats = [];
+  function showHofModal(i) {
+    const c = hofCats[i];
+    if (!c) return;
+    showModal(`
+      <h2>${c.icon} ${c.name}</h2>
+      <p class="muted">${c.rule}</p>
+      ${c.items.length ? `<div class="hof-list hof-modal">${c.items.slice().reverse().map(x => `<div>${x}</div>`).join('')}</div>`
+        : '<p class="muted">Belum ada — jadilah yang pertama!</p>'}
+      <div class="btns"><button class="btn primary" id="btnHofOk">Tutup</button></div>`);
+    el('btnHofOk').onclick = () => hideModal();
+    // klik nama pemain di modal = buka profil pemain
+    document.querySelectorAll('#modal [data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
+  }
   function hofTab() {
     const hist = save.history, D = isDiv();
     const cl = id => `${badge(id)} <b class="${isMe(id) ? 'me' : ''}">${h(club(id).name)}</b>`;
@@ -1884,15 +1893,13 @@ const League = (() => {
         return Object.entries(n).filter(([, v]) => v >= HOF.LOYAL).map(([c, v]) => `${pl(p, c)} <small class="muted">${v} musim</small>`); }));
     add('Pemain', '🔄', 'Lahir Kembali', 'Meraih trofi lagi setelah pensiun di umur 45 dan memulai karier baru dari umur 17.',
       hon.filter(r => r.rebornTitles > 0).map(r => `${pl(r.p)} <small class="muted">${r.rebornTitles} trofi setelah kembali ke 17 th</small>`));
-    // daftar peraih baru tampil saat kartu diklik
-    const card = c => { const open = hofOpen.has(c.name);
-      return `<div class="hof-card${c.items.length ? '' : ' empty'}${open ? ' open' : ''}" data-hof="${h(c.name)}" role="button" tabindex="0">
-        <div class="hof-t"><span class="hof-i">${c.icon}</span><div><b>${c.name}</b><small>${c.rule}</small></div><em>${c.items.length}</em></div>
-        ${!open ? `<div class="muted hof-none">${c.items.length ? `▸ Klik untuk melihat ${c.items.length} peraih` : 'Belum ada — jadilah yang pertama!'}</div>`
-          : c.items.length ? `<div class="hof-list">${c.items.slice(-30).reverse().map(x => `<div>${x}</div>`).join('')}</div>` : '<div class="muted hof-none">Belum ada — jadilah yang pertama!</div>'}</div>`; };
+    // kartu ringkas; daftar peraih tampil di modal saat kartu diklik
+    hofCats = cats;
+    const card = (c, i) => `<div class="hof-card${c.items.length ? '' : ' empty'}" data-hof="${i}" role="button" tabindex="0">
+        <div class="hof-t"><span class="hof-i">${c.icon}</span><div><b>${c.name}</b><small>${c.rule}</small></div><em>${c.items.length}</em></div></div>`;
     return `<p class="muted sq-note">Prestasi langka sepanjang karier ini. Rekor klub per musim (Invincibles, Mesin Gol, Tembok Baja, Penguasa Mutlak) tercatat mulai musim yang selesai setelah fitur ini aktif;
         prestasi pemain dihitung dari riwayat per musim pemain.</p>
-      ${['Klub', 'Pemain'].map(g => `<h4 class="aw-h">${g === 'Klub' ? '🏟️ Klub' : '👤 Pemain'}</h4><div class="hof-grid">${cats.filter(c => c.group === g).map(card).join('')}</div>`).join('')}`;
+      ${['Klub', 'Pemain'].map(g => `<h4 class="aw-h">${g === 'Klub' ? '🏟️ Klub' : '👤 Pemain'}</h4><div class="hof-grid">${cats.map((c, i) => (c.group === g ? card(c, i) : '')).join('')}</div>`).join('')}`;
   }
 
   let rankSort = 'total', rankAsc = false;

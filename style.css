@@ -810,3 +810,6 @@ aside { display: grid; gap: 16px; }
 
 .hof-card { cursor: pointer; transition: border-color .15s; }
 .hof-card:hover { border-color: rgba(250, 204, 21, .7); }
+
+.hof-modal { max-height: 55vh; text-align: left; margin-top: 4px; }
+.hof-modal > div { padding: 6px 0; border-bottom: 1px solid var(--border); }
