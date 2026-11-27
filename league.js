@@ -1994,22 +1994,24 @@ const League = (() => {
       const l1 = save.events.find(e => e.type === type && isKO(e) && e.round === r && e.leg === 1);
       const dec = save.events.find(e => e.type === type && isKO(e) && e.round === r && decisive(e));
       if (!dec) return '';
-      // satu "tie": tim a (tuan rumah leg 1) vs tim b, skor per leg & agregat
+      // satu "tie": tim a (tuan rumah leg 1) vs tim b; tiap baris = skor per leg (+ kolom penalti)
       let ties;
       if (l1) ties = l1.matches.map((m, i) => {
-        const m2 = dec.matches[i];
-        const s1 = m.played ? `${m.hs}-${m.as}` : '', s2 = m2 && m2.played ? `${m2.as}-${m2.hs}` : '';
-        const agg = m2 && m2.played ? [m.hs + m2.as, m.as + m2.hs] : m.played ? [m.hs, m.as] : ['', ''];
-        return { a: m.h, b: m.a, sa: agg[0], sb: agg[1], w: m2 && m2.winner, pen: m2 && m2.ph != null ? `${m2.pa}-${m2.ph}` : null,
-          legs: [s1, s2].filter(Boolean).join(', '), done: !!(m2 && m2.played) };
+        const m2 = dec.matches[i], p2 = m2 && m2.played;
+        return { a: m.h, b: m.a, w: p2 ? m2.winner : null, done: !!p2,
+          sa: [m.played ? m.hs : '', p2 ? m2.as : ''], sb: [m.played ? m.as : '', p2 ? m2.hs : ''],
+          pa: p2 && m2.ph != null ? m2.pa : null, pb: p2 && m2.ph != null ? m2.ph : null };
       });
-      else ties = dec.matches.map(m => ({ a: m.h, b: m.a, sa: m.played ? m.hs : '', sb: m.played ? m.as : '', w: m.winner, pen: m.ph != null ? `${m.ph}-${m.pa}` : null, done: m.played }));
+      else ties = dec.matches.map(m => ({ a: m.h, b: m.a, w: m.played ? m.winner : null, done: !!m.played,
+        sa: [m.played ? m.hs : ''], sb: [m.played ? m.as : ''], pa: m.ph != null ? m.ph : null, pb: m.ph != null ? m.pa : null }));
       const ms = ties.length ? ties : Array.from({ length: first >> r }, () => null);
+      const row = (t, id, sc, pen) => `<div class="br-t ${t.w === id ? 'win' : t.done ? 'lose' : ''}"><span class="br-n">${nameCell(id)}</span>
+          ${sc.map(v => `<em>${v}</em>`).join('')}${t.pa != null ? `<em class="pen" title="Adu penalti">${pen}</em>` : ''}</div>`;
       return `<div class="br-col"><h4>${name}${l1 ? ' <small class="muted">2 leg</small>' : ''}</h4><div class="br-list">${ms.map(t => t ? `
-        <div class="br-m">
-          <div class="${t.w === t.a ? 'win' : t.done ? 'lose' : ''}">${nameCell(t.a)}<em>${t.sa}</em></div>
-          <div class="${t.w === t.b ? 'win' : t.done ? 'lose' : ''}">${nameCell(t.b)}<em>${t.sb}</em></div>
-          ${t.legs ? `<small>leg: ${t.legs}</small>` : ''}${t.pen ? `<small>pen ${t.pen}</small>` : ''}
+        <div class="br-m${l1 ? ' two' : ''}">
+          ${t.pa != null || l1 ? `<div class="br-hd"><span></span>${l1 ? '<em>L1</em><em>L2</em>' : '<em></em>'}${t.pa != null ? '<em class="pen">Pen</em>' : ''}</div>` : ''}
+          ${row(t, t.a, t.sa, t.pa)}
+          ${row(t, t.b, t.sb, t.pb)}
         </div>` : '<div class="br-m empty"><div>?</div><div>?</div></div>').join('')}</div></div>`;
     }).join('');
     return `<div class="bracket">${cols}</div>`;
