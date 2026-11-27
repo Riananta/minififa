@@ -1694,9 +1694,11 @@ function showMainMenu() {
     <p>Pilih mode permainan</p>
     <div class="menu-list">
       <button class="menu-btn" id="mQuick"><span>⚽</span><b>Pertandingan Cepat</b><small>Player vs Player / vs Komputer</small></button>
-      <button class="menu-btn" id="mLeague"><span>🏆</span><b>Mode Liga</b><small>${hasCareer ? 'Lanjutkan karier' : '16 tim, liga & piala'}</small></button>
+      <button class="menu-btn" id="mLeague"><span>🏆</span><b>Mode Liga</b><small>${hasCareer ? 'Lanjutkan karier' : '32 tim, 2 divisi, piala, UCL & UEL'}</small></button>
       ${hasCareer ? '<button class="menu-btn" id="mNewCareer"><span>✨</span><b>Karier Baru</b><small>Mulai dari musim 2026/2027</small></button>' : ''}
+      ${typeof PWA !== 'undefined' && !PWA.installed() ? '<button class="menu-btn" id="mInstall"><span>📲</span><b>Pasang di HP</b><small>Ikon di layar utama, main layar penuh</small></button>' : ''}
     </div>`);
+  if ($('mInstall')) $('mInstall').onclick = () => PWA.install(showMainMenu);
   $('mQuick').onclick = () => { hideModal(); resetGame(); };
   $('mLeague').onclick = () => { hideModal(); League.open(); };
   if (hasCareer) $('mNewCareer').onclick = () => {
