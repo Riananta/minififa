@@ -1231,6 +1231,8 @@ const League = (() => {
       for (const p of Object.values(save.players)) before[p.id] = { t: p.tier, o: p.ovr, a: p.age, c: p.club };
       entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
       // pemain umur 45 pensiun: keluar dari klub (kembali ke toko sebagai pemain 17 th), klub dapat kompensasi
+      // klasemen liga ringkas: [klub, divisi, M, S, K, gol, kebobolan, poin]
+      entry.lg = (D ? [1, 2] : [1]).flatMap(dv => standings(dv).map(r => [r.id, dv, r.w, r.d, r.l, r.gf, r.ga, r.pts]));
       entry.retired = [];
       for (const x of entry.dev) {
         const p = P(x.id);
@@ -1555,7 +1557,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : isMarket() && save.window ? windowCard() : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL'], ['uel', 'UEL']] : []), ['history', 'Juara & Penghargaan'], ['rank', '🏅 Ranking Klub'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
+        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL'], ['uel', 'UEL']] : []), ['history', 'Juara & Penghargaan'], ['rank', '🏅 Ranking Klub'], ...(isMarket() ? [['prank', '🎖️ Ranking Pemain'], ['hof', '🏛️ Hall of Fame'], ['find', '🔍 Cari Pemain']] : [])]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -1587,6 +1589,16 @@ const League = (() => {
     hub.querySelectorAll('[data-ftier]').forEach(b => { b.onclick = () => { shopTier = b.dataset.ftier; showHub(); }; });
     hub.querySelectorAll('[data-fage]').forEach(b => { b.onclick = () => { shopAge = b.dataset.fage; showHub(); }; });
     hub.querySelectorAll('[data-pinfo]').forEach(b => { b.onclick = () => showPlayer(b.dataset.pinfo); });
+    hub.querySelectorAll('[data-psort]').forEach(b => { b.onclick = () => {
+      if (pSort === b.dataset.psort) pAsc = !pAsc; else { pSort = b.dataset.psort; pAsc = false; }
+      showHub();
+    }; });
+    const prs = el('prankSearch');
+    if (prs) prs.oninput = () => {
+      pQuery = prs.value; const pos = prs.selectionStart;
+      showHub();
+      const n = el('prankSearch'); n.focus(); n.setSelectionRange(pos, pos);
+    };
     hub.querySelectorAll('[data-rsort]').forEach(b => { b.onclick = () => {
       if (rankSort === b.dataset.rsort) rankAsc = !rankAsc; else { rankSort = b.dataset.rsort; rankAsc = false; }
       showHub();
@@ -1759,6 +1771,121 @@ const League = (() => {
   }
 
   // Ranking klub: nilai skuad & jumlah trofi (dihitung dari riwayat musim, berlaku untuk karier lama)
+  /* ---------- prestasi pemain (dari riwayat per musim; tetap ada walau pemain pensiun & kembali ke 17 th) ---------- */
+  // trofi tim dihitung bila pemain ada di klub juara musim itu dan bermain minimal 1 laga
+  const TEAM_TROPHIES = ['league', 'ch', 'cup', 'ucl', 'uel'];
+  function playerHonours() {
+    const H = new Map(save.history.map(x => [x.season, x]));
+    const out = [];
+    for (const p of Object.values(save.players)) {
+      const r = { p, league: 0, ch: 0, cup: 0, ucl: 0, uel: 0, pots: 0, ts: 0, ta: 0, dt: 0, g: 0, a: 0, m: 0, seasons: 0, titles: [], reborn: false, rebornTitles: 0 };
+      for (const e of p.hist || []) {
+        r.g += e.g || 0; r.a += e.as || 0; r.m += e.m || 0;
+        if (e.m) r.seasons++;
+        const x = H.get(e.s);
+        if (x && e.c && e.m) {
+          for (const k of TEAM_TROPHIES) if (x[k] === e.c) { r[k]++; r.titles.push({ k, s: e.s, c: e.c }); if (r.reborn) r.rebornTitles++; }
+          const me = o => o && o.c === e.c && o.name === p.name;
+          if (me(x.pots)) r.pots++;
+          if (me(x.topScorer)) r.ts++;
+          if (me(x.topAssist)) r.ta++;
+          if ((x.dream || []).some(me)) r.dt++;
+        }
+        if (e.rb) r.reborn = true; // musim pensiun: trofi setelah ini = "lahir kembali"
+      }
+      r.total = TEAM_TROPHIES.reduce((a, k) => a + r[k], 0);
+      r.awards = r.pots + r.ts + r.ta + r.dt;
+      out.push(r);
+    }
+    return out;
+  }
+  let pSort = 'total', pAsc = false, pQuery = '';
+  const P_MAX = 100;
+  function playerRankTab() {
+    const D = isDiv();
+    const cols = [['league', D ? '🏆 Premiere' : '🏆 Liga', true], ['ch', '🥈 Champ.', D], ['cup', '🥇 Piala', true], ['ucl', '⭐ UCL', D], ['uel', '🔶 UEL', D],
+      ['total', 'Total trofi', true], ['pots', '🏅 Terbaik', true], ['ts', '👟 Top Skor', true], ['ta', '🎯 Top Assist', true], ['dt', '⭐ Dream Team', true],
+      ['g', 'Gol', true], ['a', 'Assist', true], ['m', 'Main', true]].filter(c => c[2]);
+    if (!cols.some(c => c[0] === pSort)) pSort = 'total';
+    const q = norm(pQuery.trim()), dir = pAsc ? -1 : 1;
+    const rows = playerHonours().filter(r => r.m > 0 && (!q || norm(r.p.name).includes(q)))
+      .sort((a, b) => dir * (b[pSort] - a[pSort]) || b.total - a.total || b.awards - a.awards || b.g - a.g || a.p.name.localeCompare(b.p.name));
+    const cell = (r, k) => `<td>${r[k] ? `<b>${r[k]}</b>` : '<span class="muted">0</span>'}</td>`;
+    const where = p => p.club ? `${badge(p.club)} ${h(club(p.club).name)}` : '<span class="muted">🛒 Toko</span>';
+    return `<div class="shop-head"><input type="search" id="prankSearch" class="shop-search" placeholder="🔍 Cari pemain…" value="${h(pQuery)}" autocomplete="off"></div>
+      <p class="muted sq-note">Trofi tim dihitung bila pemain ada di klub juara dan bermain minimal 1 laga musim itu. Gol, assist & main = total karier (semua kompetisi).
+        Prestasi tetap tercatat walau pemain pensiun dan kembali ke umur 17. Tercatat sejak musim yang selesai setelah fitur riwayat pemain aktif. Klik judul kolom untuk mengurutkan.</p>
+      ${rows.length ? `<div class="tbl-wrap"><table class="tbl rank-tbl"><thead><tr><th>#</th><th class="l">Pemain</th><th class="l">Klub sekarang</th><th>Umur</th>
+        ${cols.map(([k, n]) => `<th class="sortable${pSort === k ? ' on' : ''}" data-psort="${k}">${n}${pSort === k ? (pAsc ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+        <tbody>${rows.slice(0, P_MAX).map((r, i) => `<tr class="${isMe(r.p.club) ? 'me-row' : ''}"><td>${i + 1}</td><td class="l">${pLink(r.p)} ${ROLE_SHORT[r.p.role] ? `<small class="muted">${ROLE_SHORT[r.p.role]}</small>` : ''}</td>
+          <td class="l">${where(r.p)}</td><td>${ageCell(r.p)}</td>${cols.map(([k]) => cell(r, k)).join('')}</tr>`).join('')}</tbody></table></div>
+        ${rows.length > P_MAX ? `<p class="muted sq-note">Menampilkan ${P_MAX} dari ${rows.length} pemain.</p>` : ''}`
+        : '<p class="muted">Belum ada data. Prestasi pemain tercatat setelah musim selesai.</p>'}`;
+  }
+
+  /* ---------- Hall of Fame: prestasi langka klub & pemain ---------- */
+  // batas dikalibrasi dari simulasi beberapa musim (rata-rata top skor ±40 gol, top assist ±22, gol liga klub terbanyak ±55)
+  const HOF = { GOALS: 50, ASSISTS: 25, ALLROUND_G: 20, ALLROUND_A: 12, WONDER_AGE: 20, WONDER_G: 25,
+    LEGEND_POTS: 2, COLLECTOR: 8, LOYAL: 8, LEAGUE_GF: 55, LEAGUE_GA: 22, LEAGUE_PTS: 62, DYNASTY: 3 };
+  function hofTab() {
+    const hist = save.history, D = isDiv();
+    const cl = id => `${badge(id)} <b class="${isMe(id) ? 'me' : ''}">${h(club(id).name)}</b>`;
+    const pl = (p, c) => `${pLink(p)}${c ? ` <small class="muted">(${h(club(c).name)})</small>` : ''}`;
+    const cats = [];
+    const add = (group, icon, name, rule, items) => cats.push({ group, icon, name, rule, items });
+    // --- klub ---
+    add('Klub', '👑', 'Treble Agung', 'Juara Premiere, Piala & UCL dalam satu musim.',
+      hist.filter(x => x.ucl && x.league === x.cup && x.league === x.ucl).map(x => `${cl(x.league)} <small class="muted">${x.season}</small>`));
+    add('Klub', '🛡️', 'The Invincibles', 'Juara liga (Premiere atau Championship) tanpa sekali pun kalah.',
+      hist.flatMap(x => (x.lg || []).filter(r => r[4] === 0 && (r[0] === x.league || r[0] === x.ch))
+        .map(r => `${cl(r[0])} <small class="muted">${x.season} · ${D ? DIV_NAME[r[1]] : 'Liga'} · M${r[2]} S${r[3]} K0</small>`)));
+    // juara beruntun: tiap rangkaian dicatat sekali beserta panjangnya
+    const streaks = (key, n) => {
+      const out = [];
+      for (let i = 0; i < hist.length;) {
+        let j = i;
+        while (j + 1 < hist.length && hist[i][key] && hist[j + 1][key] === hist[i][key]) j++;
+        if (hist[i][key] && j - i + 1 >= n) out.push(`${cl(hist[i][key])} <small class="muted">${hist[i].season} – ${hist[j].season} (${j - i + 1}× beruntun)</small>`);
+        i = j + 1;
+      }
+      return out;
+    };
+    add('Klub', '🏰', 'Dinasti', `Juara Premiere ${HOF.DYNASTY} musim beruntun.`, streaks('league', HOF.DYNASTY));
+    if (D) add('Klub', '🌍', 'Penguasa Eropa', 'Juara UCL 2 musim beruntun.', streaks('ucl', 2));
+    if (D) add('Klub', '🚀', 'Kisah Cinderella', 'Juara Premiere tepat semusim setelah promosi dari Championship.',
+      hist.filter((x, i) => i > 0 && hist[i - 1].promo && hist[i - 1].promo.up.includes(x.league)).map(x => `${cl(x.league)} <small class="muted">${x.season}</small>`));
+    const lgRec = (test, txt) => hist.flatMap(x => (x.lg || []).filter(test).map(r => `${cl(r[0])} <small class="muted">${x.season} · ${txt(r)}</small>`));
+    add('Klub', '💣', 'Mesin Gol', `Mencetak ${HOF.LEAGUE_GF}+ gol liga dalam semusim.`, lgRec(r => r[5] >= HOF.LEAGUE_GF, r => `${r[5]} gol`));
+    add('Klub', '🧱', 'Tembok Baja', `Kebobolan ${HOF.LEAGUE_GA} gol atau kurang di liga semusim.`, lgRec(r => r[6] <= HOF.LEAGUE_GA, r => `kebobolan ${r[6]}`));
+    add('Klub', '💯', 'Penguasa Mutlak', `Mengumpulkan ${HOF.LEAGUE_PTS}+ poin liga dalam semusim.`, lgRec(r => r[7] >= HOF.LEAGUE_PTS, r => `${r[7]} poin`));
+    // --- pemain (per musim, dari riwayat pemain) ---
+    const ps = Object.values(save.players);
+    const seasonRec = (test, txt) => ps.flatMap(p => (p.hist || []).filter(test).map(e => ({ s: e.s, html: `${pl(p, e.c)} <small class="muted">${e.s} · ${txt(e)}</small>` })))
+      .sort((a, b) => a.s.localeCompare(b.s)).map(x => x.html);
+    add('Pemain', '🦈', 'Sang Predator', `Mencetak ${HOF.GOALS}+ gol dalam semusim (semua kompetisi).`, seasonRec(e => (e.g || 0) >= HOF.GOALS, e => `${e.g} gol`));
+    add('Pemain', '🎩', 'Sang Maestro', `Memberi ${HOF.ASSISTS}+ assist dalam semusim (semua kompetisi).`, seasonRec(e => (e.as || 0) >= HOF.ASSISTS, e => `${e.as} assist`));
+    add('Pemain', '⚡', 'Pemain Komplet', `${HOF.ALLROUND_G}+ gol dan ${HOF.ALLROUND_A}+ assist dalam semusim.`,
+      seasonRec(e => (e.g || 0) >= HOF.ALLROUND_G && (e.as || 0) >= HOF.ALLROUND_A, e => `${e.g} gol · ${e.as} assist`));
+    add('Pemain', '💎', 'Wonderkid', `Umur ${HOF.WONDER_AGE} tahun atau kurang dan mencetak ${HOF.WONDER_G}+ gol semusim.`,
+      seasonRec(e => e.a <= HOF.WONDER_AGE && (e.g || 0) >= HOF.WONDER_G, e => `${e.a} th · ${e.g} gol`));
+    const hon = playerHonours();
+    add('Pemain', '🌟', 'Legenda Abadi', `Terpilih Pemain Terbaik Musim ${HOF.LEGEND_POTS} kali atau lebih.`,
+      hon.filter(r => r.pots >= HOF.LEGEND_POTS).sort((a, b) => b.pots - a.pots).map(r => `${pl(r.p)} <small class="muted">${r.pots}× Pemain Terbaik</small>`));
+    add('Pemain', '🏆', 'Kolektor Trofi', `Meraih ${HOF.COLLECTOR}+ trofi tim sepanjang karier.`,
+      hon.filter(r => r.total >= HOF.COLLECTOR).sort((a, b) => b.total - a.total).map(r => `${pl(r.p)} <small class="muted">${r.total} trofi</small>`));
+    add('Pemain', '❤️', 'Kesetiaan Sejati', `Bermain ${HOF.LOYAL}+ musim untuk satu klub.`,
+      ps.flatMap(p => { const n = {}; for (const e of p.hist || []) if (e.c && e.m) n[e.c] = (n[e.c] || 0) + 1;
+        return Object.entries(n).filter(([, v]) => v >= HOF.LOYAL).map(([c, v]) => `${pl(p, c)} <small class="muted">${v} musim</small>`); }));
+    add('Pemain', '🔄', 'Lahir Kembali', 'Meraih trofi lagi setelah pensiun di umur 45 dan memulai karier baru dari umur 17.',
+      hon.filter(r => r.rebornTitles > 0).map(r => `${pl(r.p)} <small class="muted">${r.rebornTitles} trofi setelah kembali ke 17 th</small>`));
+    const card = c => `<div class="hof-card${c.items.length ? '' : ' empty'}"><div class="hof-t"><span class="hof-i">${c.icon}</span><div><b>${c.name}</b><small>${c.rule}</small></div>
+        <em>${c.items.length}</em></div>
+      ${c.items.length ? `<div class="hof-list">${c.items.slice(-30).reverse().map(x => `<div>${x}</div>`).join('')}</div>` : '<div class="muted hof-none">Belum ada — jadilah yang pertama!</div>'}</div>`;
+    return `<p class="muted sq-note">Prestasi langka sepanjang karier ini. Rekor klub per musim (Invincibles, Mesin Gol, Tembok Baja, Penguasa Mutlak) tercatat mulai musim yang selesai setelah fitur ini aktif;
+        prestasi pemain dihitung dari riwayat per musim pemain.</p>
+      ${['Klub', 'Pemain'].map(g => `<h4 class="aw-h">${g === 'Klub' ? '🏟️ Klub' : '👤 Pemain'}</h4><div class="hof-grid">${cats.filter(c => c.group === g).map(card).join('')}</div>`).join('')}`;
+  }
+
   let rankSort = 'total', rankAsc = false;
   function rankTab() {
     const D = isDiv(), M = isMarket();
@@ -1881,6 +2008,8 @@ const League = (() => {
     if (tab === 'my') return myTab();
     if (tab === 'find') return findTab();
     if (tab === 'rank') return rankTab();
+    if (tab === 'prank') return playerRankTab();
+    if (tab === 'hof') return hofTab();
     if (tab === 'shop') return shopTab();
     if ((tab === 'ucl' || tab === 'uel') && !isDiv()) tab = 'table';
     if (tab === 'table') {
