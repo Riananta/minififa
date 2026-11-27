@@ -530,7 +530,7 @@ aside { display: grid; gap: 16px; }
 .fx-h { text-align: right; } .fx-a { text-align: left; }
 .fx-s { text-align: center; font-weight: 900; font-variant-numeric: tabular-nums; }
 .fx-p { grid-column: 1 / -1; text-align: center; color: var(--muted); margin-top: -4px; }
-.bracket { display: grid; grid-template-columns: repeat(4, minmax(170px, 1fr)); gap: 12px; overflow-x: auto; }
+.bracket { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(170px, 1fr); gap: 12px; overflow-x: auto; }
 .br-col { display: flex; flex-direction: column; gap: 8px; }
 .br-list { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 8px; }
 .br-col h4 { margin: 0 0 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; text-align: center; }
@@ -771,3 +771,15 @@ aside { display: grid; gap: 16px; }
 
 .rank-tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .rank-tbl th.sortable:hover, .rank-tbl th.sortable.on { color: #facc15; }
+
+.tbl tr.z-po td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+
+/* bagan: kolom skor per leg (+ penalti) */
+.br-m > div.br-t, .br-m > div.br-hd { display: grid; grid-template-columns: 1fr repeat(3, auto); align-items: center; gap: 0 4px; }
+.br-m > div.br-t > :first-child, .br-m > div.br-hd > :first-child { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.br-m .br-t em, .br-m .br-hd em { margin: 0; min-width: 22px; text-align: center; font-style: normal; font-weight: 600; }
+.br-m .br-t.win em { font-weight: 900; color: var(--text); }
+.br-m .br-hd { font-size: 10px; color: var(--muted); padding: 0; }
+.br-m .br-hd em { font-weight: 600; }
+.br-m .br-t em.pen { color: #facc15; }
+.br-m .br-t.lose em.pen { color: inherit; }
