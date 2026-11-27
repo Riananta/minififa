@@ -280,18 +280,30 @@ const League = (() => {
     CH_PRIZE: [3, 2.6, 2.3, 2, 1.8, 1.6, 1.4, 1.2, 1.1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.3], // Championship
     PROMO_BONUS: 3,
     UCL_PRIZE: { 'Fase Grup': 1, 'Perempat Final': 2, 'Semifinal': 3, 'Final': 4, 'Juara': 6 },
+    UEL_PRIZE: { 'Fase Grup': 0.2, 'Babak 16 Besar': 0.4, 'Perempat Final': 0.6, 'Semifinal': 0.9, 'Final': 1.2, 'Juara': 2 },
+    RETIRE_COMP: 5, // kompensasi per pemain yang pensiun
     WIN: 0.2, DRAW: 0.08, HOME: 0.1,
   };
   const CUP_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
   // Main Sendiri: 2 divisi + Piala 32 tim + UCL (16 tim Premiere)
   const CUP_ROUNDS2 = ['Babak 32 Besar', 'Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
   const UCL_ROUNDS = ['Perempat Final', 'Semifinal', 'Final'];
+  const UEL_ROUNDS = ['Babak 16 Besar', 'Perempat Final', 'Semifinal', 'Final'];
+  const PO_ROUNDS = ['Semifinal', 'Final'];
+  const KO_ROUNDS = { ucl: UCL_ROUNDS, uel: UEL_ROUNDS, po: PO_ROUNDS };
+  const COMP_NAME = { ucl: 'UCL', uel: 'UEL', po: 'Play-off Promosi' };
+  const AUTO_PROMO = 2;                   // peringkat 1-2 Championship naik langsung; 3-6 play-off 1 tiket
   const DIV_NAME = { 1: 'Premiere', 2: 'Championship' };
   const GROUP_NAME = ['A', 'B', 'C', 'D'];
   const PROMO = 3;                        // 3 tim naik & 3 tim turun
   const CUP_AFTER2 = [3, 8, 14, 20, 26];  // babak piala setelah pekan ke-n
-  const UCL_GROUP_AFTER = [5, 11, 17];    // matchday grup UCL
-  const UCL_KO_AFTER = [22, 25, 29];      // perempat final, semifinal, final UCL
+  // UCL & UEL: grup 2 leg (6 matchday), gugur 2 leg kecuali final
+  const EURO_GROUP_AFTER = [2, 4, 6, 8, 10, 12];
+  const EURO_KO = [ // [setelah pekan, kompetisi, babak, leg (0 = 1 leg)]
+    [15, 'uel', 0, 1], [16, 'ucl', 0, 1], [17, 'uel', 0, 2], [18, 'ucl', 0, 2],
+    [19, 'uel', 1, 1], [21, 'uel', 1, 2], [22, 'ucl', 1, 1], [23, 'uel', 2, 1],
+    [24, 'ucl', 1, 2], [25, 'uel', 2, 2], [28, 'ucl', 2, 0], [29, 'uel', 3, 0]];
+  const PO_KO = [[0, 1], [0, 2], [1, 1], [1, 2]]; // play-off promosi setelah pekan 30
   // tingkat kesulitan komputer lawan
   const LEVELS = [
     ['easy', 'Easy', 'Komputer sering salah langkah & jarang bertahan rapat'],
@@ -317,7 +329,20 @@ const League = (() => {
   const isCpu = () => save.mode === 'cpu';
   const isDiv = () => !!(save && save.divMode);
   const cupRounds = () => (isDiv() ? CUP_ROUNDS2 : CUP_ROUNDS);
-  const isKO = ev => ev.type === 'cup' || (ev.type === 'ucl' && !!ev.ko);
+  const isKO = ev => ev.type === 'cup' || !!ev.ko;
+  // laga penentu (1 leg atau leg 2): ada pemenang & adu penalti bila agregat sama
+  const decisive = ev => ev.type === 'cup' || (!!ev.ko && ev.leg !== 1);
+  const isEuro = t => t === 'ucl' || t === 'uel';
+  const leg1Event = ev => save.events.find(e => e.type === ev.type && e.ko && e.round === ev.round && e.leg === 1);
+  const leg1Match = (ev, m) => (ev.leg === 2 ? leg1Event(ev).matches[m.l1] : null);
+  // skor agregat dari sisi tuan rumah laga ini
+  function aggregate(ev, m, hs, as) {
+    const l1 = leg1Match(ev, m);
+    return l1 ? [hs + l1.as, as + l1.hs] : [hs, as];
+  }
+  const needSO = (ev, m, hs, as) => { if (!decisive(ev)) return false; const [x, y] = aggregate(ev, m, hs, as); return x === y; };
+  // grup UCL/UEL (karier lama: save.groups = daftar grup UCL)
+  const groupsOf = t => (!save.groups ? [] : Array.isArray(save.groups) ? (t === 'ucl' ? save.groups : []) : save.groups[t] || []);
   // divisi klub pada musim berjalan (daftar dibekukan saat musim dibuat)
   const divOf = cid => (isDiv() && save.divs[2].includes(cid) ? 2 : 1);
   const inPremiere = cid => !isDiv() || save.divs[1].includes(cid);
@@ -409,7 +434,7 @@ const League = (() => {
     save.market = true;
     save.players = {};
     for (const c of save.clubs) {
-      c.roster = []; c.lineup = {}; c.money = isDiv() && c.div === 1 ? MARKET.START_MONEY_P : MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
+      c.roster = []; c.lineup = {}; c.money = isDiv() && c.div === 1 ? MARKET.START_MONEY_P : MARKET.START_MONEY; c.income = { league: 0, cup: 0, match: 0, ucl: 0, uel: 0, promo: 0, retire: 0 };
       for (const n of NUMS) {
         const id = c.id + '-' + n;
         save.players[id] = makePlayer(id, SQUADS[c.id][n], ROLE_OF[n], TIERS[c.id][n], CLUB_AGES[c.id][NUMS.indexOf(n)], (TRAIT_DATA[c.id] || {})[n] || [], CLUB_POT[id] || '', c.id);
@@ -469,6 +494,17 @@ const League = (() => {
     c.lineup = lineup;
     syncClub(c);
   }
+  // isi posisi inti yang kosong dengan cadangan terbaik yang sah (posisi lain tidak diubah)
+  function fillEmptySlots(c) {
+    for (const n of NUMS) {
+      if (c.lineup[n] && c.roster.includes(c.lineup[n])) continue;
+      const used = new Set(NUMS.map(k => c.lineup[k]).filter(Boolean));
+      const best = c.roster.filter(id => !used.has(id) && slotOk(id, n)).map(P)
+        .sort((a, b) => TV[effTier(b, n)] - TV[effTier(a, n)] || (b.role === ROLE_OF[n]) - (a.role === ROLE_OF[n]))[0];
+      if (best) c.lineup[n] = best.id; else delete c.lineup[n];
+    }
+    syncClub(c);
+  }
   // kiper hanya boleh di posisi kiper, dan posisi kiper hanya untuk kiper
   const slotOk = (pid, slot) => !!P(pid) && (P(pid).role === 'GK') === (slot === 1);
   function setSlot(c, slot, pid) {
@@ -494,7 +530,7 @@ const League = (() => {
   function clubStatus(cid) {
     if (!isDiv()) return 2;
     if (club(cid).div === 2) return 0;
-    return save.history.slice(-2).some(x => x.league === cid || x.cup === cid || x.ucl === cid) ? 2 : 1;
+    return save.history.slice(-2).some(x => x.league === cid || x.cup === cid || x.ucl === cid || x.uel === cid) ? 2 : 1;
   }
   const willChance = (c, p) => WILL[p.tier][clubStatus(c.id)];
   const willLabel = v => (v >= 0.85 ? ['🟢', 'Tinggi'] : v >= 0.5 ? ['🟡', 'Sedang'] : v >= 0.2 ? ['🟠', 'Rendah'] : ['🔴', 'Sangat rendah']);
@@ -502,10 +538,10 @@ const League = (() => {
   const refusedBy = (c, pid) => !!(save.refused && (save.refused[pid] || []).includes(c.id));
   // pemain yang baru dijual klub ini di jendela yang sama tidak bisa dibeli kembali (mencegah rugi)
   const soldByMe = (c, pid) => !!(save.soldBy && save.soldBy[pid] === c.id);
-  function buy(c, pid) {
+  function buy(c, pid, force) {
     const p = P(pid);
     if (!save.window || !p || p.club || soldByMe(c, pid) || refusedBy(c, pid) || c.roster.length >= MARKET.MAX_SQUAD || c.money + 1e-9 < price(p)) return false;
-    if (Math.random() >= willChance(c, p)) {
+    if (!force && Math.random() >= willChance(c, p)) {
       save.refused = save.refused || {};
       (save.refused[pid] = save.refused[pid] || []).push(c.id);
       if (c.id === save.user || TV[p.tier] >= TV.A) save.news.unshift(`${p.name} (${p.tier}) menolak bergabung dengan ${club(c.id).name}`);
@@ -514,6 +550,7 @@ const League = (() => {
     c.money = r2(c.money - price(p)); p.club = c.id; c.roster.push(pid);
     (p.career = p.career || []).push({ c: c.id, from: save.year });
     addLedger(c.id, `Beli ${p.name}`, -price(p));
+    if (c.lineup && NUMS.some(n => !c.lineup[n])) fillEmptySlots(c); // posisi inti kosong (mis. pemain pensiun) langsung diisi
     save.news.unshift(`${club(c.id).name} membeli ${p.name} (${p.tier}) seharga ${fmtM(price(p))}`);
     return true;
   }
@@ -556,6 +593,18 @@ const League = (() => {
       return false;
     };
     const benchOf = () => c.roster.filter(id => !NUMS.some(n => c.lineup[n] === id)).map(P);
+    // 0) lengkapi posisi wajib (mis. setelah pemain pensiun): 1 kiper, 2 bek, 2 gelandang, 1 penyerang
+    const NEED = { GK: 1, DF: 2, MF: 2, FW: 1 };
+    const missing = () => { const r = { GK: 0, DF: 0, MF: 0, FW: 0 }; for (const id of c.roster) r[P(id).role]++; return Object.keys(NEED).filter(k => r[k] < NEED[k]); };
+    for (let g0 = 0; g0 < 8 && missing().length; g0++) {
+      const role = missing()[0];
+      const opts = freeAgents().filter(p => p.role === role && price(p) <= c.money).sort((a, b) => TV[b.tier] - TV[a.tier] || price(a) - price(b));
+      if (tryBuy(opts, 4)) continue;
+      // semua menolak: ambil yang termurah (tanpa uji minat) agar tim tetap bisa bermain
+      const cheap = freeAgents().filter(p => p.role === role).sort((a, b) => price(a) - price(b))[0];
+      if (!cheap || !buy(c, cheap.id, true)) break;
+    }
+    if (missing().length === 0) autoLineup(c);
     // 1) upgrade pemain inti (posisi terlemah dulu)
     if (Math.random() < AI_T.UPGRADE) {
       for (let tries = 0; tries < 2; tries++) {
@@ -684,20 +733,21 @@ const League = (() => {
     const d1 = save.clubs.filter(c => c.div === 1).map(c => c.id), d2 = save.clubs.filter(c => c.div === 2).map(c => c.id);
     save.divs = { 1: d1, 2: d2 };
     const r1 = roundRobin(shuffle(d1.slice())), r2 = roundRobin(shuffle(d2.slice()));
-    const pot = shuffle(d1.slice());
-    save.groups = [0, 1, 2, 3].map(g => pot.slice(g * 4, g * 4 + 4));
-    const gRounds = save.groups.map(g => roundRobin(g).slice(0, 3)); // 1 leg
+    const pot1 = shuffle(d1.slice()), pot2 = shuffle(d2.slice());
+    save.groups = { ucl: [0, 1, 2, 3].map(g => pot1.slice(g * 4, g * 4 + 4)), uel: [0, 1, 2, 3].map(g => pot2.slice(g * 4, g * 4 + 4)) };
+    const gRounds = { ucl: save.groups.ucl.map(g => roundRobin(g)), uel: save.groups.uel.map(g => roundRobin(g)) }; // 2 leg = 6 matchday
     const events = [];
     r1.forEach((pairs, i) => {
       const md = i + 1;
       events.push({ type: 'league', md, matches: [...pairs.map(([hh, a]) => ({ h: hh, a, d: 1 })), ...r2[i].map(([hh, a]) => ({ h: hh, a, d: 2 }))] });
       const c = CUP_AFTER2.indexOf(md);
       if (c >= 0) events.push({ type: 'cup', round: c, matches: [] });
-      const g = UCL_GROUP_AFTER.indexOf(md);
-      if (g >= 0) events.push({ type: 'ucl', gmd: g + 1, matches: gRounds.flatMap((gr, gi) => gr[g].map(([hh, a]) => ({ h: hh, a, g: gi }))) });
-      const k = UCL_KO_AFTER.indexOf(md);
-      if (k >= 0) events.push({ type: 'ucl', ko: true, round: k, matches: [] });
+      const g = EURO_GROUP_AFTER.indexOf(md);
+      if (g >= 0) for (const t of ['ucl', 'uel'])
+        events.push({ type: t, gmd: g + 1, matches: gRounds[t].flatMap((gr, gi) => gr[g].map(([hh, a]) => ({ h: hh, a, g: gi }))) });
+      for (const [after, t, round, leg] of EURO_KO) if (after === md) events.push({ type: t, ko: true, round, ...(leg ? { leg } : {}), matches: [] });
     });
+    for (const [round, leg] of PO_KO) events.push({ type: 'po', ko: true, round, leg, matches: [] });
     const draw = shuffle(save.clubs.map(c => c.id));
     events.find(e => e.type === 'cup' && e.round === 0).matches =
       Array.from({ length: draw.length / 2 }, (_, i) => ({ h: draw[2 * i], a: draw[2 * i + 1] }));
@@ -745,7 +795,7 @@ const League = (() => {
       </div>`;
     showModal(`
       <h2>Pilih Tim</h2>
-      <p>Musim ${seasonName(START_YEAR)} · 32 tim · Premiere & Championship + Piala + UCL</p>
+      <p>Musim ${seasonName(START_YEAR)} · 32 tim · Premiere & Championship + Piala + UCL & UEL</p>
       <div class="lvl-pick">
         <span>Tingkat kesulitan:</span>
         <div class="seg">${LEVELS.map(([k, n]) => `<button type="button" data-lvl="${k}" class="${k === 'medium' ? 'on' : ''}">${n}</button>`).join('')}</div>
@@ -955,9 +1005,10 @@ const League = (() => {
       m.ratings = ratings ? { h: ratings.home, a: ratings.away } : genRatings(m);
       if (ratings && ratings.byPid && isMarket()) m.pr = { h: ratings.byPid.home, a: ratings.byPid.away };
     }
-    if (isKO(ev)) {
-      if (hs === as) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
-      m.winner = hs > as || (hs === as && m.ph > m.pa) ? m.h : m.a;
+    if (decisive(ev)) {
+      const [x, y] = aggregate(ev, m, hs, as);
+      if (x === y) { const s = so || shootout(); m.ph = s.ph; m.pa = s.pa; }
+      m.winner = x > y || (x === y && m.ph > m.pa) ? m.h : m.a;
     }
   }
   const winnerLabel = m => (m.ph != null ? ` (${m.ph}-${m.pa} pen)` : '');
@@ -966,25 +1017,40 @@ const League = (() => {
   function currentEvent() {
     const ev = save.events[save.next];
     if (ev && isKO(ev) && !ev.matches.length) {
-      let pairs;
-      if (ev.type === 'ucl' && ev.round === 0) {
-        // perempat final UCL: juara grup vs runner-up grup pasangannya
-        const t = save.groups.map((g, gi) => groupTable(gi));
-        pairs = [[t[0][0], t[1][1]], [t[1][0], t[0][1]], [t[2][0], t[3][1]], [t[3][0], t[2][1]]].map(([a, b]) => [a.id, b.id]);
+      if (ev.leg === 2) {
+        // leg 2: tuan rumah bertukar
+        ev.matches = leg1Event(ev).matches.map((m, i) => ({ h: m.a, a: m.h, l1: i }));
       } else {
-        // pasangan babak berikutnya: pemenang pertandingan berurutan di bagan
-        const prev = save.events.find(e => e.type === ev.type && isKO(e) && e.round === ev.round - 1);
-        const w = prev.matches.map(m => m.winner);
-        pairs = Array.from({ length: w.length / 2 }, (_, i) => [w[2 * i], w[2 * i + 1]]);
+        let pairs, keep = false;
+        if (ev.round === 0 && ev.type === 'ucl') {
+          // perempat final UCL: juara grup vs runner-up grup pasangannya
+          const t = groupsOf('ucl').map((g, gi) => groupTable('ucl', gi));
+          pairs = [[t[0][0], t[1][1]], [t[1][0], t[0][1]], [t[2][0], t[3][1]], [t[3][0], t[2][1]]].map(([a, b]) => [a.id, b.id]);
+        } else if (ev.round === 0 && ev.type === 'uel') {
+          // 16 besar UEL: 8 tim lolos grup UEL vs 8 tim tersingkir dari grup UCL
+          const q = groupsOf('uel').flatMap((g, gi) => groupTable('uel', gi).slice(0, 2).map(r => r.id));
+          const d = shuffle(groupsOf('ucl').flatMap((g, gi) => groupTable('ucl', gi).slice(2).map(r => r.id)));
+          pairs = q.map((id, i) => [d[i], id]);
+        } else if (ev.round === 0 && ev.type === 'po') {
+          // play-off promosi: 3 vs 6, 4 vs 5 (peringkat lebih tinggi tuan rumah di leg 2)
+          const t = standings(2);
+          pairs = [[t[5].id, t[2].id], [t[4].id, t[3].id]]; keep = true;
+        } else {
+          // pasangan babak berikutnya: pemenang laga berurutan di bagan
+          const prev = save.events.find(e => e.type === ev.type && isKO(e) && e.round === ev.round - 1 && decisive(e));
+          const w = prev.matches.map(m => m.winner);
+          pairs = Array.from({ length: w.length / 2 }, (_, i) => [w[2 * i], w[2 * i + 1]]);
+        }
+        ev.matches = pairs.map(p => (keep || Math.random() < 0.5 ? { h: p[0], a: p[1] } : { h: p[1], a: p[0] }));
       }
-      ev.matches = pairs.map(p => (Math.random() < 0.5 ? { h: p[0], a: p[1] } : { h: p[1], a: p[0] }));
       persist();
     }
     return ev;
   }
   const eventTitle = (ev, m) => ev.type === 'league' ? `${isDiv() ? (m && m.d ? DIV_NAME[m.d] : 'Liga') : 'Liga'} · Pekan ${ev.md}/30`
     : ev.type === 'cup' ? `Piala · ${cupRounds()[ev.round]}`
-    : ev.ko ? `UCL · ${UCL_ROUNDS[ev.round]}` : `UCL · Fase Grup ${ev.gmd}/3${m && m.g != null ? ` (Grup ${GROUP_NAME[m.g]})` : ''}`;
+    : ev.ko ? `${COMP_NAME[ev.type]} · ${(KO_ROUNDS[ev.type] || UCL_ROUNDS)[ev.round]}${ev.leg ? ` · Leg ${ev.leg}` : ''}`
+    : `${COMP_NAME[ev.type]} · Fase Grup ${ev.gmd}/${save.events.filter(e => e.type === ev.type && !e.ko).length}${m && m.g != null ? ` (Grup ${GROUP_NAME[m.g]})` : ''}`;
   const userMatch = ev => ev && save.user && ev.matches.find(m => m.h === save.user || m.a === save.user);
 
   // Warna kostum: tim tamu memakai warna kedua jika terlalu mirip dengan tim tuan rumah
@@ -1010,10 +1076,10 @@ const League = (() => {
   async function playUserMatch(how) {
     const ev = currentEvent(), m = userMatch(ev);
     if (!m || m.played) return;
-    const ko = isKO(ev);
+    const ko = ev.type === 'cup' || (!!ev.ko && !ev.leg); // pesan "adu penalti" di mesin game hanya untuk laga 1 leg
     if (how === 'instant') {
       const [hs, as] = simScore(m.h, m.a);
-      const so = ko && hs === as ? shootout() : null;
+      const so = needSO(ev, m, hs, as) ? shootout() : null;
       if (so) await showShootout(m, hs, as, so);
       setResult(ev, m, hs, as, so);
       await showInstant(ev, m);
@@ -1035,7 +1101,7 @@ const League = (() => {
 
   // Hasil dari mesin game (main sendiri / ditonton): gol, assist & rating sungguhan
   async function recordEngineResult(ev, m, hs, as, events, ratings, done) {
-    const so = isKO(ev) && hs === as ? shootout() : null;
+    const so = needSO(ev, m, hs, as) ? shootout() : null;
     if (so) await showShootout(m, hs, as, so);
     // gol dari mesin game: home/away -> klub; gol bunuh diri tanpa pencetak
     const goals = (events || []).filter(e => e.type === 'goal')
@@ -1070,7 +1136,8 @@ const League = (() => {
     viewEvent = save.next;
     save.next++;
     persist();
-    tab = ev.type === 'cup' ? 'cup' : ev.type === 'ucl' ? 'ucl' : 'fixtures';
+    tab = ev.type === 'cup' ? 'cup' : isEuro(ev.type) ? ev.type : ev.type === 'po' ? 'table' : 'fixtures';
+    if (ev.type === 'po') divView = 2;
     showHub();
     if (save.next >= save.events.length) endSeason();
   }
@@ -1094,35 +1161,40 @@ const League = (() => {
     const D = isDiv(), rounds = cupRounds();
     const table = standings(1), table2 = D ? standings(2) : null;
     const final = save.events.find(e => e.type === 'cup' && e.round === rounds.length - 1).matches[0];
-    const uclFinal = D ? save.events.find(e => e.type === 'ucl' && e.ko && e.round === UCL_ROUNDS.length - 1).matches[0] : null;
+    // final kompetisi (laga penentu babak terakhir); karier lama mungkin belum punya UEL/play-off
+    const finalOf = t => { const e = save.events.find(x => x.type === t && x.ko && x.round === KO_ROUNDS[t].length - 1 && decisive(x)); return e && e.matches[0] && e.matches[0].played ? e.matches[0] : null; };
+    const uclFinal = D ? finalOf('ucl') : null, uelFinal = D ? finalOf('uel') : null, poFinal = D ? finalOf('po') : null;
     const inM = (e, cid) => e.matches.some(m => m.h === cid || m.a === cid);
+    const reachEuro = (t, cid) => {
+      let r = groupsOf(t).some(g => g.includes(cid)) ? 'Fase Grup' : null;
+      for (const e of save.events) if (e.type === t && e.ko && inM(e, cid)) r = KO_ROUNDS[t][e.round];
+      const f = finalOf(t);
+      return f && f.winner === cid ? 'Juara' : r;
+    };
     const reachCup = cid => {
       let r = rounds[0];
       for (const e of save.events) if (e.type === 'cup' && inM(e, cid)) r = rounds[e.round];
       return final.winner === cid ? 'Juara' : r;
     };
-    const reachUcl = cid => {
-      if (!D || !save.divs[1].includes(cid)) return null;
-      let r = 'Fase Grup';
-      for (const e of save.events) if (e.type === 'ucl' && e.ko && inM(e, cid)) r = UCL_ROUNDS[e.round];
-      return uclFinal.winner === cid ? 'Juara' : r;
-    };
-    let userPos = null, userCup = null, userDiv = null, userUcl = null;
+    const reachUcl = cid => (D ? reachEuro('ucl', cid) : null);
+    let userPos = null, userCup = null, userDiv = null, userUcl = null, userUel = null;
     if (save.user) {
       userDiv = divOf(save.user);
       userPos = (userDiv === 2 ? table2 : table).findIndex(r => r.id === save.user) + 1;
       userCup = reachCup(save.user);
       userUcl = reachUcl(save.user);
+      userUel = D ? reachEuro('uel', save.user) : null;
     }
     const st = playerStats(awardComp(), inPremiere);
     const ts = st.goals[0], ta = st.assists[0];
-    const pots = playerOfSeason(table, final.winner, uclFinal && uclFinal.winner);
+    const pots = playerOfSeason(table, final.winner, uclFinal && uclFinal.winner, uelFinal && uelFinal.winner);
     const entry = { season: seasonName(save.year), league: table[0].id, cup: final.winner, userPos, userCup,
       topScorer: ts ? { c: ts.cid, name: ts.name, n: ts.n } : null,
       topAssist: ta ? { c: ta.cid, name: ta.name, n: ta.n } : null,
       pots, dream: dreamTeam() };
-    if (D) Object.assign(entry, { ch: table2[0].id, ucl: uclFinal.winner, userDiv, userUcl,
-      promo: { up: table2.slice(0, PROMO).map(r => r.id), down: table.slice(-PROMO).map(r => r.id) } });
+    if (D) Object.assign(entry, { ch: table2[0].id, ucl: uclFinal && uclFinal.winner, uel: uelFinal && uelFinal.winner, po: poFinal && poFinal.winner, userDiv, userUcl, userUel,
+      // naik: peringkat 1-2 + juara play-off (karier lama tanpa play-off: peringkat 3)
+      promo: { up: [...table2.slice(0, AUTO_PROMO).map(r => r.id), poFinal ? poFinal.winner : table2[AUTO_PROMO].id], down: table.slice(-PROMO).map(r => r.id) } });
     const firstTime = !save.history.some(x => x.season === entry.season);
     if (firstTime) save.history.push(entry);
     // hadiah uang (sekali per musim)
@@ -1132,7 +1204,11 @@ const League = (() => {
       table.forEach((r, i) => pay(r.id, 'league', MARKET.LEAGUE_PRIZE[i], `Hadiah ${D ? 'Premiere' : 'liga'} (peringkat ${i + 1})`));
       if (D) {
         table2.forEach((r, i) => pay(r.id, 'league', MARKET.CH_PRIZE[i], `Hadiah Championship (peringkat ${i + 1})`));
-        for (const cid of save.divs[1]) { const r = reachUcl(cid); pay(cid, 'ucl', MARKET.UCL_PRIZE[r], `Hadiah UCL (${r})`); }
+        for (const c of save.clubs) {
+          const ru = reachEuro('ucl', c.id), re = reachEuro('uel', c.id);
+          if (ru) pay(c.id, 'ucl', MARKET.UCL_PRIZE[ru], `Hadiah UCL (${ru})`);
+          if (re) pay(c.id, 'uel', MARKET.UEL_PRIZE[re], `Hadiah UEL (${re})`);
+        }
         for (const cid of entry.promo.up) pay(cid, 'promo', MARKET.PROMO_BONUS, 'Bonus promosi ke Premiere');
       }
       for (const c of save.clubs) { const r = reachCup(c.id); pay(c.id, 'cup', MARKET.CUP_PRIZE[r], `Hadiah piala (${r})`); }
@@ -1142,8 +1218,8 @@ const League = (() => {
         for (const cid of entry.promo.up) club(cid).div = 1;
       }
       const me = club(save.user), inc = me.income;
-      prize = { ...inc, total: inc.league + inc.cup + inc.match + (inc.ucl || 0) + (inc.promo || 0), money: me.money };
-      entry.prize = prize;
+      // (total pendapatan dihitung setelah kompensasi pensiun di bawah)
+      entry.prize = prize = { ...inc };
       // simpan statistik pemain musim ini (dilihat saat jendela transfer berikutnya)
       save.lastStats = { season: seasonName(save.year), stats: clubPlayerStats(save.user) };
       // statistik semua pemain (untuk tab Skuad saat jendela transfer)
@@ -1154,6 +1230,23 @@ const League = (() => {
       const before = {};
       for (const p of Object.values(save.players)) before[p.id] = { t: p.tier, o: p.ovr, a: p.age, c: p.club };
       entry.dev = developPlayers().map(x => ({ ...x, name: P(x.id).name, age: P(x.id).age, club: P(x.id).club }));
+      // pemain umur 45 pensiun: keluar dari klub (kembali ke toko sebagai pemain 17 th), klub dapat kompensasi
+      entry.retired = [];
+      for (const x of entry.dev) {
+        const p = P(x.id);
+        if (!x.reborn || !p.club) continue;
+        const c = club(p.club);
+        c.roster = c.roster.filter(id => id !== p.id);
+        for (const n of NUMS) if (c.lineup[n] === p.id) delete c.lineup[n];
+        const st = (p.career || [])[(p.career || []).length - 1];
+        if (st && st.c === c.id && st.to == null) st.to = save.year;
+        p.club = null;
+        pay(c.id, 'retire', MARKET.RETIRE_COMP, `Kompensasi pensiun ${p.name}`);
+        fillEmptySlots(c);
+        entry.retired.push({ name: p.name, c: c.id });
+      }
+      const inc2 = club(save.user).income;
+      entry.prize = prize = { ...inc2, total: ['league', 'cup', 'match', 'ucl', 'uel', 'promo', 'retire'].reduce((a, k) => a + (inc2[k] || 0), 0), money: club(save.user).money };
       // riwayat per pemain tiap musim (ringkas agar hemat localStorage)
       for (const p of Object.values(save.players)) {
         const b = before[p.id], x = all[p.id];
@@ -1175,20 +1268,26 @@ const League = (() => {
       ${champ('🏆', D ? 'Juara Premiere' : 'Juara Liga', E.league)}
       ${D ? champ('🥈', 'Juara Championship', E.ch) : ''}
       ${champ('🥇', 'Juara Piala', E.cup)}
-      ${D ? champ('⭐', 'Juara UCL', E.ucl) : ''}
-      ${E.promo ? `<div class="promo-box"><div>⬆️ Naik ke Premiere: ${names(E.promo.up)}</div><div>⬇️ Turun ke Championship: ${names(E.promo.down)}</div></div>` : ''}
+      ${D && E.ucl ? champ('⭐', 'Juara UCL', E.ucl) : ''}
+      ${D && E.uel ? champ('🔶', 'Juara UEL', E.uel) : ''}
+      ${E.promo ? `<div class="promo-box"><div>⬆️ Naik ke Premiere: ${names(E.promo.up)}${E.po ? ` <small class="muted">(${h(club(E.po).name)} lewat play-off)</small>` : ''}</div><div>⬇️ Turun ke Championship: ${names(E.promo.down)}</div></div>` : ''}
+      ${(E.retired || []).length ? `<div class="promo-box"><div>👴 Pensiun (umur 45, kembali ke toko sebagai pemain 17 th; klub mendapat kompensasi ${fmtM(MARKET.RETIRE_COMP)}/pemain):</div>
+        <div>${E.retired.map(x => `<b class="${isMe(x.c) ? 'me' : ''}">${h(x.name)}</b> <small class="muted">(${h(club(x.c).name)})</small>`).join(', ')}</div></div>` : ''}
       ${E.topScorer ? `<div class="champ-row"><span>👟 Top Skor</span><b>${h(E.topScorer.name)} <small>(${h(club(E.topScorer.c).name)}) · ${E.topScorer.n} gol</small></b></div>` : ''}
       ${E.topAssist ? `<div class="champ-row"><span>🎯 Top Assist</span><b>${h(E.topAssist.name)} <small>(${h(club(E.topAssist.c).name)}) · ${E.topAssist.n} assist</small></b></div>` : ''}
-      ${D ? '<p class="muted aw-note">Penghargaan dari semua kompetisi (liga, piala, UCL), khusus pemain klub Premiere.</p>' : ''}
+      ${D ? '<p class="muted aw-note">Penghargaan dari semua kompetisi (liga, piala, UCL, UEL), khusus pemain klub Premiere.</p>' : ''}
       ${E.pots ? potsCard(E.pots) : ''}
       ${E.dev ? devCard(E.dev) : ''}
       <h4 class="aw-h">⭐ Dream Team Musim Ini</h4>
       ${dreamPitch(E.dream)}
-      ${save.user ? `<p>${h(club(save.user).name)}: peringkat <b>${E.userPos}</b> di ${D ? DIV_NAME[E.userDiv] : 'liga'}, piala: <b>${E.userCup}</b>${E.userUcl ? `, UCL: <b>${E.userUcl}</b>` : ''}.</p>` : ''}
+      ${save.user ? `<p>${h(club(save.user).name)}: peringkat <b>${E.userPos}</b> di ${D ? DIV_NAME[E.userDiv] : 'liga'}, piala: <b>${E.userCup}</b>${E.userUcl ? `, UCL: <b>${E.userUcl}</b>` : ''}${E.userUel ? `, UEL: <b>${E.userUel}</b>` : ''}.</p>` : ''}
       ${prize ? `<div class="fin-box"><b>💰 Pendapatan musim ini: +${fmtM(prize.total)}</b>
-        <small>Hadiah liga +${fmtM(prize.league)} · Hadiah piala +${fmtM(prize.cup)}${prize.ucl ? ` · Hadiah UCL +${fmtM(prize.ucl)}` : ''}${prize.promo ? ` · Bonus promosi +${fmtM(prize.promo)}` : ''} · Bonus laga +${fmtM(prize.match)}</small>
+        <small>Hadiah liga +${fmtM(prize.league)} · Hadiah piala +${fmtM(prize.cup)}${prize.ucl ? ` · Hadiah UCL +${fmtM(prize.ucl)}` : ''}${prize.uel ? ` · Hadiah UEL +${fmtM(prize.uel)}` : ''}${prize.promo ? ` · Bonus promosi +${fmtM(prize.promo)}` : ''}${prize.retire ? ` · Kompensasi pensiun +${fmtM(prize.retire)}` : ''} · Bonus laga +${fmtM(prize.match)}</small>
         <small>Uang klub sekarang: <b>${fmtM(prize.money)}</b></small></div>` : ''}
-      <div class="btns"><button class="btn primary" id="btnNextSeason">Mulai Musim ${seasonName(save.year + 1)}</button></div>`);
+      <div class="btns"><button class="btn ghost" id="btnSeasonView">📊 Lihat Data Musim</button>
+        <button class="btn primary" id="btnNextSeason">Mulai Musim ${seasonName(save.year + 1)}</button></div>`);
+    // tutup rekap untuk melihat data musim (buka lagi lewat "Lihat ringkasan musim")
+    el('btnSeasonView').onclick = () => { hideModal(); showHub(); };
     el('btnNextSeason').onclick = () => {
       // kekuatan tim sedikit berubah tiap musim
       for (const c of save.clubs) c.form = Math.round((Math.random() - 0.5) * 4);
@@ -1198,7 +1297,7 @@ const League = (() => {
         save.news = [];
         save.soldBy = {};
         save.refused = {}; // pemain yang menolak bisa didekati lagi
-        for (const c of save.clubs) c.income = { league: 0, cup: 0, match: 0, ucl: 0, promo: 0 };
+        for (const c of save.clubs) c.income = { league: 0, cup: 0, match: 0, ucl: 0, uel: 0, promo: 0, retire: 0 };
       }
       persist();
       hideModal();
@@ -1287,15 +1386,15 @@ const League = (() => {
   }
 
   // Pemain Terbaik Musim: skor gabungan rating, gol, assist, clean sheet & prestasi tim
-  const POTS = { RATING: 10, GOAL: 2, ASSIST: 1.5, CS: 0.8, LEAGUE: 12, CUP: 6, UCL: 10, TOP4: 3 };
-  function playerOfSeason(table, cupWinner, uclWinner) {
+  const POTS = { RATING: 10, GOAL: 2, ASSIST: 1.5, CS: 0.8, LEAGUE: 12, CUP: 6, UCL: 10, UEL: 4, TOP4: 3 };
+  function playerOfSeason(table, cupWinner, uclWinner, uelWinner) {
     const champ = table[0].id, top4 = table.slice(0, 4).map(r => r.id);
     const list = seasonPlayers(awardComp()).filter(p => p.apps >= 10 && inPremiere(p.cid)).map(p => {
-      const lg = p.cid === champ, cup = p.cid === cupWinner, ucl = !!uclWinner && p.cid === uclWinner, t4 = !lg && top4.includes(p.cid);
+      const lg = p.cid === champ, cup = p.cid === cupWinner, ucl = !!uclWinner && p.cid === uclWinner, uel = !!uelWinner && p.cid === uelWinner, t4 = !lg && top4.includes(p.cid);
       const score = p.avg * POTS.RATING + p.g * POTS.GOAL + p.a * POTS.ASSIST + p.cs * POTS.CS
-        + (lg ? POTS.LEAGUE : 0) + (cup ? POTS.CUP : 0) + (ucl ? POTS.UCL : 0) + (t4 ? POTS.TOP4 : 0);
+        + (lg ? POTS.LEAGUE : 0) + (cup ? POTS.CUP : 0) + (ucl ? POTS.UCL : 0) + (uel ? POTS.UEL : 0) + (t4 ? POTS.TOP4 : 0);
       return { c: p.cid, num: p.num, role: p.role, name: p.name, avg: Math.round(p.avg * 100) / 100,
-        g: p.g, a: p.a, cs: p.cs, league: lg, cup, ucl, top4: t4, score: Math.round(score * 10) / 10 };
+        g: p.g, a: p.a, cs: p.cs, league: lg, cup, ucl, uel, top4: t4, score: Math.round(score * 10) / 10 };
     }).sort((a, b) => b.score - a.score);
     return list[0] || null;
   }
@@ -1306,7 +1405,7 @@ const League = (() => {
       <div class="pots-s">
         <span>Rating <b>${p.avg.toFixed(2)}</b></span><span>Gol <b>${p.g}</b></span><span>Assist <b>${p.a}</b></span>
         <span>G/A <b>${p.g + p.a}</b></span>${p.role === 'GK' || p.role === 'DF' ? `<span>Clean sheet <b>${p.cs}</b></span>` : ''}
-        ${p.league ? '<span>🏆 Juara Liga</span>' : ''}${p.cup ? '<span>🥇 Juara Piala</span>' : ''}${p.ucl ? '<span>⭐ Juara UCL</span>' : ''}${p.top4 ? '<span>4 Besar</span>' : ''}
+        ${p.league ? '<span>🏆 Juara Liga</span>' : ''}${p.cup ? '<span>🥇 Juara Piala</span>' : ''}${p.ucl ? '<span>⭐ Juara UCL</span>' : ''}${p.uel ? '<span>🔶 Juara UEL</span>' : ''}${p.top4 ? '<span>4 Besar</span>' : ''}
         <span>Skor <b>${p.score}</b></span>
       </div>
     </div>`;
@@ -1421,7 +1520,7 @@ const League = (() => {
     if (!isDiv()) return tableOf(save.clubs.map(c => c.id), ev => ev.type === 'league');
     return tableOf(save.divs[div], (ev, m) => ev.type === 'league' && m.d === div);
   }
-  const groupTable = gi => tableOf(save.groups[gi], (ev, m) => ev.type === 'ucl' && !ev.ko && m.g === gi);
+  const groupTable = (t, gi) => tableOf(groupsOf(t)[gi], (ev, m) => ev.type === t && !ev.ko && m.g === gi);
 
   /* ---------- tampilan hub ---------- */
   function hideHub() {
@@ -1456,7 +1555,7 @@ const League = (() => {
       </header>
       <section class="next-card">${isCpu() ? cpuCard(ev) : isMarket() && save.window ? windowCard() : nextCard(ev, um)}</section>
       <nav class="tabs">
-        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL']] : []), ['history', 'Juara & Penghargaan'], ['rank', '🏅 Ranking Klub'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
+        ${[...(isMarket() ? [['my', 'Skuad Saya'], ['shop', 'Toko Pemain']] : []), ['table', 'Klasemen'], ['fixtures', 'Jadwal & Hasil'], ['stats', 'Statistik Pemain'], ['squads', 'Skuad'], ['cup', 'Piala'], ...(isDiv() ? [['ucl', 'UCL'], ['uel', 'UEL']] : []), ['history', 'Juara & Penghargaan'], ['rank', '🏅 Ranking Klub'], ...(isMarket() ? [['find', '🔍 Cari Pemain']] : [])]
           .map(([k, n]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${n}</button>`).join('')}
       </nav>
       <section class="tab-body">${tabBody()}</section>`;
@@ -1638,7 +1737,10 @@ const League = (() => {
       <h4 class="aw-h">Pemain Inti <small class="muted st-label">· statistik ${h(ms.label)} (liga + piala)</small></h4>
       <div class="tbl-wrap"><table class="tbl my-tbl"><thead><tr><th>Posisi</th><th class="l">Pemain</th><th>Umur</th><th>Tier</th><th>Tem</th><th>Ope</th><th>Ber</th><th>Kon</th><th>Kip</th>
         <th class="st-h" title="Jumlah main">Main</th><th class="st-h">Gol</th><th class="st-h">Ast</th><th class="st-h" title="Rata-rata rating">Rating</th></tr></thead><tbody>
-      ${NUMS.map(n => { const p = P(c.lineup[n]), et = effTier(p, n), off = p.role !== ROLE_OF[n];
+      ${NUMS.map(n => { const p = P(c.lineup[n]);
+        if (!p) return `<tr><td><b>${SLOT_LABEL[n]}</b></td><td class="l"><select data-slot="${n}"><option value="">— pilih pemain —</option>${opt(n, null)}</select>
+          <small class="warn">⚠️ kosong${c.roster.some(id => slotOk(id, n) && !NUMS.some(k => c.lineup[k] === id)) ? '' : ' · beli pemain di Toko'}</small></td><td colspan="11"></td></tr>`;
+        const et = effTier(p, n), off = p.role !== ROLE_OF[n];
         const pp = { ...p, role: ROLE_OF[n], tier: et };
         return `<tr><td><b>${SLOT_LABEL[n]}</b></td>
           <td class="l"><select data-slot="${n}">${opt(n, p.id)}</select> ${pInfo(p)} ${traitIcons(p)}${off ? ` <small class="warn" title="Bermain di luar posisi: tier turun 1">⚠️ luar posisi</small>` : ''}</td>
@@ -1660,13 +1762,13 @@ const League = (() => {
   let rankSort = 'total', rankAsc = false;
   function rankTab() {
     const D = isDiv(), M = isMarket();
-    const cols = [['value', 'Nilai skuad', M], ['league', D ? '🏆 Premiere' : '🏆 Liga', true], ['ch', '🥈 Championship', D], ['cup', '🥇 Piala', true], ['ucl', '⭐ UCL', D], ['total', 'Total trofi', true]]
+    const cols = [['value', 'Nilai skuad', M], ['league', D ? '🏆 Premiere' : '🏆 Liga', true], ['ch', '🥈 Championship', D], ['cup', '🥇 Piala', true], ['ucl', '⭐ UCL', D], ['uel', '🔶 UEL', D], ['total', 'Total trofi', true]]
       .filter(c => c[2]);
     if (!cols.some(c => c[0] === rankSort)) rankSort = 'total';
     const rows = save.clubs.map(c => {
-      const r = { id: c.id, league: 0, ch: 0, cup: 0, ucl: 0 };
-      for (const x of save.history) for (const k of ['league', 'ch', 'cup', 'ucl']) if (x[k] === c.id) r[k]++;
-      r.total = r.league + r.ch + r.cup + r.ucl;
+      const r = { id: c.id, league: 0, ch: 0, cup: 0, ucl: 0, uel: 0 };
+      for (const x of save.history) for (const k of ['league', 'ch', 'cup', 'ucl', 'uel']) if (x[k] === c.id) r[k]++;
+      r.total = r.league + r.ch + r.cup + r.ucl + r.uel;
       r.value = M ? r2(c.roster.reduce((a, id) => a + price(P(id)), 0)) : 0;
       return r;
     });
@@ -1724,11 +1826,25 @@ const League = (() => {
       ${save.news.length ? `<h4 class="aw-h">Berita Transfer</h4><div class="news">${save.news.slice(0, 40).map(n => `<div>📰 ${h(n)}</div>`).join('')}</div>` : ''}`;
   }
 
+  // keterangan sistem laga (1 leg / 2 leg / grup)
+  function koNote(ev, m) {
+    if (ev.type === 'cup' || (ev.ko && !ev.leg)) return '<p class="nc-sub">Sistem gugur 1 leg. Imbang = adu penalti.</p>';
+    if (ev.ko && ev.leg === 1) return '<p class="nc-sub">Leg 1 dari 2. Pemenang ditentukan skor agregat; agregat sama = adu penalti setelah leg 2.</p>';
+    if (ev.ko && ev.leg === 2) { const l1 = leg1Match(ev, m);
+      return `<p class="nc-sub">Leg 2 · Leg 1: ${h(club(l1.h).name)} ${l1.hs}-${l1.as} ${h(club(l1.a).name)}. Agregat sama = adu penalti.</p>`; }
+    if (ev.type === 'ucl') return '<p class="nc-sub">Fase grup 2 leg (kandang-tandang): juara & runner-up grup lolos ke perempat final.</p>';
+    if (ev.type === 'uel') return '<p class="nc-sub">Fase grup 2 leg: juara & runner-up grup lolos ke 16 besar, bertemu 8 tim tersingkir dari grup UCL.</p>';
+    return '';
+  }
+
   function nextCard(ev, um) {
     if (!ev) return `<div class="nc-title">Musim selesai</div>
       <button class="btn primary" id="btnSeasonEnd" onclick="League.endSeason()">Lihat ringkasan musim</button>`;
     const title = `<div class="nc-title">${eventTitle(ev, um)}</div>`;
-    if (!um) return `${title}<p class="nc-sub">${h(club(save.user).name)} tidak bermain di babak ini${ev.type === 'ucl' && !inPremiere(save.user) ? ' (UCL khusus tim Premiere)' : isKO(ev) ? ' (sudah tersingkir)' : ''}.</p>
+    const why = ev.type === 'ucl' && !inPremiere(save.user) ? ' (UCL khusus tim Premiere)'
+      : ev.type === 'uel' && !ev.ko && inPremiere(save.user) ? ' (fase grup UEL khusus tim Championship)'
+      : ev.type === 'po' ? ' (play-off promosi untuk peringkat 3–6 Championship)' : isKO(ev) ? ' (tidak lolos / sudah tersingkir)' : '';
+    if (!um) return `${title}<p class="nc-sub">${h(club(save.user).name)} tidak bermain di babak ini${why}.</p>
       <div class="nc-actions"><button class="btn primary" id="btnSimEvent">⏭ Simulasikan</button></div>`;
     const H = club(um.h), A = club(um.a);
     return `${title}
@@ -1737,7 +1853,7 @@ const League = (() => {
         <div class="nc-vs">VS</div>
         <div class="nc-team">${badge(um.a)}<b class="${um.a === save.user ? 'me' : ''}">${h(A.name)}</b><small>Tandang</small></div>
       </div>
-      ${isKO(ev) ? '<p class="nc-sub">Sistem gugur 1 leg. Imbang = adu penalti.</p>' : ev.type === 'ucl' ? '<p class="nc-sub">Fase grup 1 leg: juara & runner-up grup lolos ke perempat final.</p>' : ''}
+      ${koNote(ev, um)}
       <div class="nc-actions">
         <button class="btn primary" data-play="play">▶ Main</button>
         <button class="btn ghost" data-play="instant">⚡ Hasil Instan</button>
@@ -1766,12 +1882,13 @@ const League = (() => {
     if (tab === 'find') return findTab();
     if (tab === 'rank') return rankTab();
     if (tab === 'shop') return shopTab();
-    if ((tab === 'ucl') && !isDiv()) tab = 'table';
+    if ((tab === 'ucl' || tab === 'uel') && !isDiv()) tab = 'table';
     if (tab === 'table') {
       const dv = isDiv() ? curDivView() : 1;
       const rows = standings(dv);
-      const zone = i => !isDiv() ? '' : dv === 1 && i >= rows.length - PROMO ? ' z-down' : dv === 2 && i < PROMO ? ' z-up' : '';
-      return `${isDiv() ? `${divSeg()}<p class="muted sq-note">${dv === 1 ? `Semua tim Premiere ikut UCL. ${PROMO} tim terbawah turun ke Championship.` : `${PROMO} tim teratas naik ke Premiere.`}</p>` : ''}<div class="tbl-wrap"><table class="tbl">
+      const zone = i => !isDiv() ? '' : dv === 1 && i >= rows.length - PROMO ? ' z-down' : dv === 2 && i < AUTO_PROMO ? ' z-up' : dv === 2 && i < 6 ? ' z-po' : '';
+      const po = isDiv() && dv === 2 && save.events.some(e => e.type === 'po' && e.matches.length) ? `<h4 class="aw-h">🎟️ Play-off Promosi (2 leg)</h4>${bracket('po', PO_ROUNDS, 2)}` : '';
+      return `${isDiv() ? `${divSeg()}<p class="muted sq-note">${dv === 1 ? `Semua tim Premiere ikut UCL. ${PROMO} tim terbawah turun ke Championship.` : `Peringkat 1–${AUTO_PROMO} naik langsung ke Premiere. Peringkat 3–6 ikut play-off 2 leg (3 vs 6, 4 vs 5, lalu final) untuk 1 tiket promosi. Semua tim Championship ikut UEL.`}</p>` : ''}${po}<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>#</th><th class="l">Tim</th><th>Main</th><th>M</th><th>S</th><th>K</th><th>GM</th><th>GK</th><th>SG</th><th>Poin</th><th class="form-h">5 Terakhir</th></tr></thead>
         <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i === 0 ? ' top' : ''}${zone(i)}">
           <td>${i + 1}</td><td class="l">${nameCell(r.id)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
@@ -1796,7 +1913,7 @@ const League = (() => {
       else if (isDiv() && ev.type === 'league') {
         const mine = divOf(save.user), order = mine === 2 ? [2, 1] : [1, 2];
         list = order.map(d => sec(DIV_NAME[d], ev.matches.filter(m => m.d === d))).join('');
-      } else if (ev.type === 'ucl' && !ev.ko) list = GROUP_NAME.map((g, gi) => sec(`Grup ${g}`, ev.matches.filter(m => m.g === gi))).join('');
+      } else if (isEuro(ev.type) && !ev.ko) list = GROUP_NAME.map((g, gi) => sec(`Grup ${g}`, ev.matches.filter(m => m.g === gi))).join('');
       else list = ev.matches.map(fxRow).join('');
       return `<div class="ev-nav">
           <button class="btn" id="evPrev" ${viewEvent === 0 ? 'disabled' : ''}>←</button>
@@ -1805,7 +1922,7 @@ const League = (() => {
         </div>${list}`;
     }
     if (tab === 'stats') {
-      const COMPS = [['p', 'Premiere'], ['c', 'Championship'], ['cup', 'Piala'], ['ucl', 'UCL']];
+      const COMPS = [['p', 'Premiere'], ['c', 'Championship'], ['cup', 'Piala'], ['ucl', 'UCL'], ['uel', 'UEL']];
       const comp = isDiv() ? (statComp || (divOf(save.user) === 2 ? 'c' : 'p')) : 'league';
       const cname = isDiv() ? COMPS.find(x => x[0] === comp)[1] : 'Liga';
       const st = playerStats(comp);
@@ -1855,13 +1972,18 @@ const League = (() => {
     if (tab === 'cup') {
       return bracket('cup', cupRounds(), isDiv() ? 16 : 8);
     }
-    if (tab === 'ucl') {
-      const groups = save.groups.map((g, gi) => { const rows = groupTable(gi);
+    if (tab === 'ucl' || tab === 'uel') {
+      const t = tab, gs = groupsOf(t);
+      if (!gs.length) return '<p class="muted">UEL dimulai musim depan (karier ini dibuat sebelum ada UEL).</p>';
+      const old = Array.isArray(save.groups);
+      const groups = gs.map((g, gi) => { const rows = groupTable(t, gi);
         return `<div class="grp"><h4>Grup ${GROUP_NAME[gi]}</h4><table class="tbl"><thead><tr><th>#</th><th class="l">Tim</th><th>Main</th><th>SG</th><th>Poin</th></tr></thead>
-          <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i < 2 ? ' z-up' : ''}"><td>${i + 1}</td><td class="l">${nameCell(r.id)}</td><td>${r.p}</td>
+          <tbody>${rows.map((r, i) => `<tr class="${isMe(r.id) ? 'me-row' : ''}${i < 2 ? ' z-up' : t === 'ucl' && !old ? ' z-po' : ''}"><td>${i + 1}</td><td class="l">${nameCell(r.id)}</td><td>${r.p}</td>
           <td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table></div>`; }).join('');
-      return `<p class="muted sq-note">16 tim Premiere · fase grup 1 leg, juara & runner-up grup lolos ke perempat final (sistem gugur 1 leg).</p>
-        <div class="grp-grid">${groups}</div><h4 class="aw-h">Fase Gugur</h4>${bracket('ucl', UCL_ROUNDS, 4)}`;
+      const note = t === 'ucl'
+        ? (old ? '16 tim Premiere · fase grup 1 leg, juara & runner-up grup lolos ke perempat final.' : '16 tim Premiere · fase grup 2 leg; juara & runner-up grup lolos ke perempat final, peringkat 3–4 turun ke 16 besar UEL. Fase gugur 2 leg (final 1 leg), agregat sama = adu penalti.')
+        : '16 tim Championship · fase grup 2 leg; juara & runner-up grup lolos ke 16 besar dan bertemu 8 tim tersingkir dari grup UCL. Fase gugur 2 leg (final 1 leg), agregat sama = adu penalti.';
+      return `<p class="muted sq-note">${note}</p><div class="grp-grid">${groups}</div><h4 class="aw-h">Fase Gugur</h4>${bracket(t, KO_ROUNDS[t], t === 'ucl' ? 4 : 8)}`;
     }
     // riwayat juara
     return historyTab();
@@ -1869,13 +1991,25 @@ const League = (() => {
   // bagan sistem gugur (piala / UCL)
   function bracket(type, names, first) {
     const cols = names.map((name, r) => {
-      const ev = save.events.find(e => e.type === type && isKO(e) && e.round === r);
-      const ms = ev.matches.length ? ev.matches : Array.from({ length: first >> r }, () => null);
-      return `<div class="br-col"><h4>${name}</h4><div class="br-list">${ms.map(m => m ? `
+      const l1 = save.events.find(e => e.type === type && isKO(e) && e.round === r && e.leg === 1);
+      const dec = save.events.find(e => e.type === type && isKO(e) && e.round === r && decisive(e));
+      if (!dec) return '';
+      // satu "tie": tim a (tuan rumah leg 1) vs tim b, skor per leg & agregat
+      let ties;
+      if (l1) ties = l1.matches.map((m, i) => {
+        const m2 = dec.matches[i];
+        const s1 = m.played ? `${m.hs}-${m.as}` : '', s2 = m2 && m2.played ? `${m2.as}-${m2.hs}` : '';
+        const agg = m2 && m2.played ? [m.hs + m2.as, m.as + m2.hs] : m.played ? [m.hs, m.as] : ['', ''];
+        return { a: m.h, b: m.a, sa: agg[0], sb: agg[1], w: m2 && m2.winner, pen: m2 && m2.ph != null ? `${m2.pa}-${m2.ph}` : null,
+          legs: [s1, s2].filter(Boolean).join(', '), done: !!(m2 && m2.played) };
+      });
+      else ties = dec.matches.map(m => ({ a: m.h, b: m.a, sa: m.played ? m.hs : '', sb: m.played ? m.as : '', w: m.winner, pen: m.ph != null ? `${m.ph}-${m.pa}` : null, done: m.played }));
+      const ms = ties.length ? ties : Array.from({ length: first >> r }, () => null);
+      return `<div class="br-col"><h4>${name}${l1 ? ' <small class="muted">2 leg</small>' : ''}</h4><div class="br-list">${ms.map(t => t ? `
         <div class="br-m">
-          <div class="${m.winner === m.h ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.h)}<em>${m.played ? m.hs : ''}</em></div>
-          <div class="${m.winner === m.a ? 'win' : m.played ? 'lose' : ''}">${nameCell(m.a)}<em>${m.played ? m.as : ''}</em></div>
-          ${m.ph != null ? `<small>pen ${m.ph}-${m.pa}</small>` : ''}
+          <div class="${t.w === t.a ? 'win' : t.done ? 'lose' : ''}">${nameCell(t.a)}<em>${t.sa}</em></div>
+          <div class="${t.w === t.b ? 'win' : t.done ? 'lose' : ''}">${nameCell(t.b)}<em>${t.sb}</em></div>
+          ${t.legs ? `<small>leg: ${t.legs}</small>` : ''}${t.pen ? `<small>pen ${t.pen}</small>` : ''}
         </div>` : '<div class="br-m empty"><div>?</div><div>?</div></div>').join('')}</div></div>`;
     }).join('');
     return `<div class="bracket">${cols}</div>`;
@@ -1885,13 +2019,13 @@ const League = (() => {
     const me = save.user ? club(save.user) : null;
     const D = isDiv();
     const table = `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th class="l">Musim</th><th class="l">🏆 ${D ? 'Premiere' : 'Juara Liga'}</th>${D ? '<th class="l">🥈 Championship</th>' : ''}<th class="l">🥇 Juara Piala</th>${D ? '<th class="l">⭐ UCL</th>' : ''}<th class="l">🏅 Pemain Terbaik</th><th class="l">👟 Top Skor</th><th class="l">🎯 Top Assist</th>${me ? `<th>Posisi ${h(me.name)}</th><th class="l">Piala</th>` : ''}</tr></thead>
+      <thead><tr><th class="l">Musim</th><th class="l">🏆 ${D ? 'Premiere' : 'Juara Liga'}</th>${D ? '<th class="l">🥈 Championship</th>' : ''}<th class="l">🥇 Juara Piala</th>${D ? '<th class="l">⭐ UCL</th><th class="l">🔶 UEL</th>' : ''}<th class="l">🏅 Pemain Terbaik</th><th class="l">👟 Top Skor</th><th class="l">🎯 Top Assist</th>${me ? `<th>Posisi ${h(me.name)}</th><th class="l">Piala</th>` : ''}</tr></thead>
       <tbody>${save.history.slice().reverse().map(x => `<tr>
-        <td class="l">${x.season}</td><td class="l">${nameCell(x.league)}</td>${D ? `<td class="l">${x.ch ? nameCell(x.ch) : '-'}</td>` : ''}<td class="l">${nameCell(x.cup)}</td>${D ? `<td class="l">${x.ucl ? nameCell(x.ucl) : '-'}</td>` : ''}
+        <td class="l">${x.season}</td><td class="l">${nameCell(x.league)}</td>${D ? `<td class="l">${x.ch ? nameCell(x.ch) : '-'}</td>` : ''}<td class="l">${nameCell(x.cup)}</td>${D ? `<td class="l">${x.ucl ? nameCell(x.ucl) : '-'}</td><td class="l">${x.uel ? nameCell(x.uel) : '-'}</td>` : ''}
         <td class="l">${x.pots ? `${h(x.pots.name)} <small class="muted">(${h(club(x.pots.c).name)})</small>` : '-'}</td>
         <td class="l">${x.topScorer ? `${h(x.topScorer.name)} (${x.topScorer.n})` : '-'}</td>
         <td class="l">${x.topAssist ? `${h(x.topAssist.name)} (${x.topAssist.n})` : '-'}</td>
-        ${me ? `<td>${x.userPos ?? '-'}${x.userDiv ? ` <small class="muted">${DIV_NAME[x.userDiv]}</small>` : ''}</td><td class="l">${x.userCup ?? '-'}${x.userUcl ? ` <small class="muted">· UCL ${x.userUcl}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
+        ${me ? `<td>${x.userPos ?? '-'}${x.userDiv ? ` <small class="muted">${DIV_NAME[x.userDiv]}</small>` : ''}</td><td class="l">${x.userCup ?? '-'}${x.userUcl ? ` <small class="muted">· UCL ${x.userUcl}</small>` : ''}${x.userUel ? ` <small class="muted">· UEL ${x.userUel}</small>` : ''}</td>` : ''}</tr>`).join('')}</tbody>
     </table></div>`;
     const awards = save.history.slice().reverse().filter(x => x.pots || x.dream).map(x => `
       <div class="aw-season"><h4 class="aw-h">Musim ${x.season}</h4>

@@ -771,3 +771,6 @@ aside { display: grid; gap: 16px; }
 
 .rank-tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .rank-tbl th.sortable:hover, .rank-tbl th.sortable.on { color: #facc15; }
+
+.tbl tr.z-po td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+.br-m small { display: block; }
